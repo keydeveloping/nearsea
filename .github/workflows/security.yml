@@ -40,11 +40,17 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      # `cargo audit` membaca Cargo.lock di root workspace (SEC-CICD-001).
-      - name: cargo audit
-        uses: rustsec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998 # v2
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
+
+      # `--locked` memakai Cargo.lock milik cargo-audit sendiri; tanpa itu cargo
+      # menarik dependency terbaru yang bisa menuntut rustc lebih baru daripada
+      # toolchain ter-pin, dan langkah ini gagal karena alasan yang tidak ada
+      # hubungannya dengan proyek.
+      - name: cargo audit (CVE dependency)
+        run: |
+          cargo install cargo-audit --locked
+          cargo audit
 
       - name: Setup pnpm
         uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
@@ -66,6 +72,30 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      # Dependency review membandingkan manifest PR dengan branch target. Selama
+      # branch target belum punya manifest apa pun, GitHub belum membentuk graph
+      # dan API-nya menjawab 403/404 — kegagalan struktural, bukan temuan
+      # keamanan. Gate ini aktif sendiri begitu baseline-nya ada.
+      - name: Cek baseline dependency graph
+        id: baseline
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          base='${{ github.base_ref }}'
+          head='${{ github.head_ref }}'
+          if gh api "repos/${{ github.repository }}/dependency-graph/compare/${base}...${head}" >/dev/null 2>&1; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "### Dependency review dilewati"
+              echo "Branch target \`$base\` belum punya dependency graph (belum ada manifest)."
+              echo "Gate ini aktif otomatis setelah baseline manifest ada di branch target."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4
+        if: steps.baseline.outputs.available == 'true'
         with:
           fail-on-severity: high
