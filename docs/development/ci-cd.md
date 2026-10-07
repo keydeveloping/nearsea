@@ -9,9 +9,11 @@
 
 | Branch | Environment | Trigger deploy | Approval | Artefak |
 |---|---|---|---|---|
-| `dev` | staging (RPC testnet, kontrak/subdomain dev terpisah) | otomatis saat push | tidak | web + kontrak dev |
-| `testnet` | testnet publik | otomatis saat push (gate CI) | 1 (environment) | web + kontrak testnet |
+| `dev` | staging (RPC testnet, kontrak/subdomain dev terpisah) | otomatis saat push ⚠️ **belum aktif — manual sampai TASK-029** | tidak | web + kontrak dev |
+| `testnet` | testnet publik | otomatis saat push (gate CI) ⚠️ **belum aktif — manual sampai TASK-029** | 1 (environment) | web + kontrak testnet |
 | `mainnet` | produksi | **manual saja** (`workflow_dispatch`) | wajib (reviewer) | web + kontrak mainnet |
+
+> **Status TASK-001:** trigger `push` untuk `dev`/`testnet` sengaja belum dipasang — environment belum di-provision (TASK-028) dan wiring SSH belum ada (TASK-029). Ketiga workflow deploy kini `workflow_dispatch` saja + guard variabel environment (§7).
 
 ## 2. Tahapan pipeline
 
@@ -32,11 +34,21 @@
 |---|---|---|
 | Format + clippy tanpa warning | kontrak | blok merge |
 | Unit + sandbox test hijau | kontrak | blok merge |
-| Lint + typecheck + build | FE | blok merge |
-| `cargo audit` / `npm audit` (critical/high) | semua | blok merge |
+| Lint + format + typecheck + test + build | FE | blok merge |
+| `cargo audit` / `pnpm audit` (critical/high) | semua | blok merge |
 | Secret scanning (gitleaks) | semua | blok merge |
 | Reproducible build + verifikasi hash | kontrak (testnet/mainnet) | blok deploy |
 | Audit eksternal lulus | kontrak (mainnet, TASK-027) | blok deploy |
+
+- **Advisory tanpa patch** dicatat **eksplisit** di `frontend/pnpm-workspace.yaml`
+  (`auditConfig.ignoreCves`) sehingga terlihat saat review — bukan disenyapkan otomatis oleh flag CI.
+  Entri di sana **permanen**: wajib ditinjau ulang dan dihapus begitu upstream merilis patch
+  (pelacak: TASK-035). Advisory **baru** yang punya perbaikan tetap memerahkan CI. Gate inilah yang
+  menangkap `tinypool` (critical) di run CI pertama — perbaikannya naik `vitest` 3 → 4 (vitest 4 tidak
+  lagi memakai `tinypool`).
+- **Job yang bergantung pada baseline**: `Dependency review (PR)` butuh dependency graph branch target;
+  selama branch target belum punya manifest, job melewati dirinya sendiri dengan catatan di job summary
+  (kegagalan struktural ≠ temuan keamanan).
 
 ## 4. Secrets di CI
 
@@ -63,7 +75,7 @@
 
 ## 7. Workflow YAML (referensi file nyata)
 
-Lima file di `.github/workflows/` adalah **kerangka final** (isi perintah sudah nyata; job build/test akan hijau begitu kode ada — TASK-001). Cuplikan kunci:
+Lima file di `.github/workflows/` adalah **file nyata** (perintah sudah dijalankan & diverifikasi lokal saat TASK-001). Cuplikan kunci:
 
 **ci.yml — job kontrak (potongan):**
 
@@ -71,13 +83,15 @@ Lima file di `.github/workflows/` adalah **kerangka final** (isi perintah sudah 
 contracts:
   name: Contracts — fmt, clippy, test
   runs-on: ubuntu-latest
+  timeout-minutes: 12
   steps:
-    - uses: actions/checkout@v4
-    - uses: dtolnay/rust-toolchain@stable
+    - uses: actions/checkout@<sha> # v4
+    - uses: dtolnay/rust-toolchain@<sha> # stable
       with:
+        # Versi toolchain TIDAK ditulis di sini — dibaca dari rust-toolchain.toml (SSOT pin).
         components: rustfmt, clippy
         targets: wasm32-unknown-unknown
-    - uses: actions/cache@v4
+    - uses: actions/cache@<sha> # v4
       with:
         path: |
           ~/.cargo/registry
@@ -87,17 +101,31 @@ contracts:
     - run: cargo fmt --all -- --check
     - run: cargo clippy --all-targets -- -D warnings
     - run: cargo test --workspace
-    - run: cargo near build non-reproducible-wasm
+    # cargo-near: versi + sha256 di-pin (bukan `cargo install` tanpa pin)
+    - run: |
+        curl -fsSL -o cargo-near.tar.gz \
+          "https://github.com/near/cargo-near/releases/download/cargo-near-v0.22.0/cargo-near-x86_64-unknown-linux-gnu.tar.gz"
+        echo "<sha256>  cargo-near.tar.gz" | sha256sum --check --strict
+        tar -xzf cargo-near.tar.gz
+        install -m 0755 cargo-near-x86_64-unknown-linux-gnu/cargo-near "$HOME/.cargo/bin/cargo-near"
+    - run: |
+        for crate in contract market factory; do
+          cargo near build non-reproducible-wasm --no-abi --manifest-path "$crate/Cargo.toml"
+        done
     - run: |
         mkdir -p artifacts
-        sha256sum target/near/*.wasm | tee artifacts/code-hash.txt
-    - uses: actions/upload-artifact@v4
+        sha256sum target/near/*/*.wasm | tee artifacts/code-hash.txt
+    - uses: actions/upload-artifact@<sha> # v4
       with:
         name: contracts-wasm
+        retention-days: 90
         path: |
-          target/near/*.wasm
+          target/near/*/*.wasm
           artifacts/code-hash.txt
 ```
+
+- **Glob artifact = `target/near/*/*.wasm`** — `cargo-near` menaruh hasil di sub-folder per crate (`target/near/<crate>/<crate>.wasm`), bukan langsung di `target/near/`.
+- `--no-abi` pada gate build: ABI + build reproducible diaktifkan saat rilis kontrak pertama (TASK-032, §14). Ini juga membuat gate bisa dijalankan di Windows lokal (langkah ABI butuh linking native).
 
 **deploy-*.yml — pola SSH deploy (potongan):**
 
@@ -117,6 +145,7 @@ contracts:
 
 - Sumber kebenaran isi workflow tetap file di `.github/workflows/`; cuplikan di sini **ilustratif** — bila berbeda, file yang benar (dan tabel §3/§11 disinkronkan).
 - Semua action pihak ketiga **di-pin ke commit SHA** (bukan tag) — [cicd-security.md](../security/cicd-security.md) §5.
+- **Status deploy-*.yml (TASK-001):** ketiganya `workflow_dispatch` **saja** + langkah "Cek prasyarat environment" yang gagal bila `*_HOST`/`*_SSH_USER`/`*_APP_DIR`/`*_APP_URL` kosong. Alasannya: environment (VPS + subdomain) belum di-provision (TASK-028) dan wiring SSH belum ada (TASK-029) — auto-deploy `push: branches: [dev]`/`[testnet]` baru diaktifkan di TASK-029. Dengan begitu tidak ada kredensial yang dibutuhkan dan tidak ada job merah yang menyesatkan.
 
 ## 8. Caching, concurrency, timeout, retry
 
@@ -192,7 +221,7 @@ near view "$MARKET_CONTRACT_ID" contract_source_metadata   # versi + hash
 near view "$MARKET_CONTRACT_ID" get_version                # bila method tersedia
 
 # 5. Verifikasi hash artifact == on-chain (kontrak) — §14
-sha256sum target/near/*.wasm | diff - artifacts/code-hash.txt
+sha256sum target/near/*/*.wasm | diff - artifacts/code-hash.txt
 ```
 
 - Gagal pada langkah mana pun → deploy **gagal** → jalankan penanganan kegagalan (§12), jangan tandai sukses.
@@ -251,8 +280,8 @@ sha256sum target/near/*.wasm | diff - artifacts/code-hash.txt
 A. BUILD (lingkungan terkunci)
    1. Build reproducible: `cargo near build` (mode reproducible) di runner dengan toolchain
       di-pin (versi rust + wasm-opt + near-sdk identik dengan rilis).
-   2. Hasil: target/near/<contract>.wasm
-   3. HITUNG hash:  sha256sum target/near/<contract>.wasm  → simpan sebagai artifact
+   2. Hasil: target/near/<crate>/<crate>.wasm
+   3. HITUNG hash:  sha256sum target/near/*/*.wasm  → simpan sebagai artifact
                     (mis. artifacts/code-hash.txt)
 
 B. PUBLISH metadata on-chain (NEP-330)
@@ -266,7 +295,7 @@ C. BANDINGKAN (post-deploy, otomatis di workflow)
       TIDAK    → deploy GAGAL; jangan promosikan; investigasi (artifact swap — cicd-security §3).
 ```
 
-- Skeleton [ci.yml](../../.github/workflows/ci.yml) saat ini memakai `cargo near build non-reproducible-wasm` (cukup untuk uji); **mode reproducible** diaktifkan saat rilis kontrak pertama (TASK-032) dan hasil hash dibandingkan persis.
+- [ci.yml](../../.github/workflows/ci.yml) saat ini memakai `cargo near build non-reproducible-wasm --no-abi` (cukup untuk uji); **mode reproducible + ABI** diaktifkan saat rilis kontrak pertama (TASK-032) dan hasil hash dibandingkan persis.
 - Verifikasi ulang independen (opsional, gate M4): build di Docker pinned + SourceScan, bandingkan hash dengan metadata on-chain.
 - **Web/indexer**: hash = digest artifact build (image digest Docker). Dibandingkan `git rev-parse HEAD` dengan SHA yang tercatat di artifact/image label; bukan NEP-330.
 - Perubahan toolchain (versi rust/near-sdk) **mengubah hash** meski sumber sama → catat versi toolchain di metadata/summary agar verifikasi bisa direproduksi.
@@ -333,7 +362,8 @@ Aturan rollback:
 
 ## 17. Status
 
-- Pipeline & workflow: **PROPOSED** — diimplementasi saat scaffold repo (TASK-001) dan infra CI/CD (TASK-029). File workflow di `.github/workflows/` sudah disiapkan sebagai kerangka.
+- Pipeline & workflow: **CI + Security AKTIF (TASK-001)** — `ci.yml` (fmt/clippy/test + build wasm + lint/format/typecheck/test/build FE) dan `security.yml` (gitleaks + audit + dependency review) sudah berisi perintah nyata dan dijalankan terhadap workspace yang ada. Deploy workflow masih **PROPOSED** (diaktifkan di TASK-029, bersama TASK-028).
 - Strategi merge yang memengaruhi promosi: [git-workflow.md](./git-workflow.md) §9.
 - Caching/timeout/retensi/gate migration/smoke test/notifikasi/rollback (§8–§16) — **DECIDED (ronde 15)**; nilai operasional (retensi, wait timer) boleh disetel saat scaffold.
 - Reproducible build mode + verifikasi hash otomatis (§14) — **PROPOSED** (aktif saat rilis kontrak pertama, TASK-032).
+- **Belum ada di CI (sengaja, jangan ditambahkan sebagai required check sebelum job-nya ada):** `API — test` (butuh API + DB, TASK-018), `Fuzz smoke` (TASK-006+), `E2E — golden path` (TASK-008/010).

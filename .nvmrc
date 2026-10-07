@@ -1,2 +1,3 @@
 # Node LTS for Next.js FE/API (SSOT versi: docs/architecture/tech-stack.md)
-20
+# 24 (LTS): Node 20 sudah EOL (April 2026) dan jsdom 30 (test FE) mensyaratkan >= 22.22.2.
+24

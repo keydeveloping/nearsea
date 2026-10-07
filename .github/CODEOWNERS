@@ -1,0 +1,38 @@
+# CODEOWNERS — NearSea
+# Format & peran: docs/development/git-workflow.md §10.
+# Satu maintainer saat ini merangkap semua peran (git-workflow.md §16); saat tim
+# bertambah, ganti handle dengan team per peran (@nearsea/contract-owner, dst.).
+# CODEOWNERS tidak menggantikan required approval — ia menambahkan reviewer otomatis.
+
+# Default reviewer semua perubahan.
+*                                   @keydeveloping
+
+# Kode yang menyentuh dana — review wajib.
+/contract/                          @keydeveloping
+/market/                            @keydeveloping
+/factory/                           @keydeveloping
+
+# Aplikasi & data proyeksi.
+/frontend/                          @keydeveloping
+/indexer/                           @keydeveloping
+
+# Jalur injeksi secret/supply chain (cicd-security.md §3).
+/.github/workflows/                 @keydeveloping
+
+# Kebijakan keamanan & proses.
+/docs/security/                     @keydeveloping
+/docs/development/                  @keydeveloping
+
+# Higienitas secret (secrets-and-gitignore.md).
+/.gitignore                         @keydeveloping
+/.env.example                       @keydeveloping
+/.gitleaks.toml                     @keydeveloping
+
+# Dependency & versi artefak.
+/Cargo.toml                         @keydeveloping
+/Cargo.lock                         @keydeveloping
+/rust-toolchain.toml                @keydeveloping
+/.nvmrc                             @keydeveloping
+
+# Konsistensi rilis (versioning-and-release.md).
+/CHANGELOG.md                       @keydeveloping

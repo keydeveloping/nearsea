@@ -308,7 +308,8 @@ Operasi seller lainnya: `remove_sale` dan `update_price` — keduanya `assert_on
 
 > **CATATAN PROYEK (ronde 16)** — di tutorial harga lewat `msg` hasil `nft_approve`; di NearSea
 > **harga = argumen langsung** `list_nft_for_sale(...)` (2-tx, ADR-002). Versi toolchain di atas
-> = catatan lingkungan riset; pin final mengikuti `rust-toolchain.toml` (TASK-001).
+> = catatan lingkungan riset; **pin final sudah dikunci di TASK-001** (Rust 1.93.1, near-sdk 5.29.1,
+> cargo-near 0.22.0) — lihat [docs/architecture/tech-stack.md](docs/architecture/tech-stack.md) §Version pins.
 
 ---
 

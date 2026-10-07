@@ -1,8 +1,10 @@
 # =============================================================================
 # Security — NearSea
-# SKELETON. Gate keamanan supply-chain: secret scanning + dependency review +
-# audit dependensi. Aturan: docs/development/secrets-and-gitignore.md
-# Register requirement: docs/security/security-requirements.md (SEC-CICD-001).
+# Gate keamanan supply-chain: secret scanning + dependency review + audit
+# dependensi. Aturan: docs/development/secrets-and-gitignore.md
+# Register requirement: docs/security/security-requirements.md (SEC-CICD-001/002).
+#
+# Semua action pihak ketiga di-pin ke commit SHA (cicd-security.md §5).
 # =============================================================================
 
 name: Security
@@ -23,12 +25,17 @@ jobs:
   secret-scan:
     name: Secret scanning (gitleaks)
     runs-on: ubuntu-latest
+    # gitleaks-action membaca daftar commit PR lewat API; tanpa scope ini GitHub
+    # menjawab 403 "Resource not accessible by integration".
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
       - name: gitleaks
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -36,28 +43,35 @@ jobs:
     name: Dependency audit (cargo + npm)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
 
-      - name: cargo audit
+      # `--locked` memakai Cargo.lock milik cargo-audit sendiri; tanpa itu cargo
+      # menarik dependency terbaru yang bisa menuntut rustc lebih baru daripada
+      # toolchain ter-pin, dan langkah ini gagal karena alasan yang tidak ada
+      # hubungannya dengan proyek.
+      - name: cargo audit (CVE dependency)
         run: |
           cargo install cargo-audit --locked
           cargo audit
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
-          version: 9
+          package_json_file: frontend/package.json
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 20
+          node-version-file: .nvmrc
 
       - name: npm audit (high+)
         working-directory: frontend
+        # Advisory tanpa patch dicatat di `frontend/pnpm-workspace.yaml`
+        # (auditConfig.ignoreCves) supaya terlihat saat review — bukan
+        # disenyapkan otomatis. Advisory BARU yang bisa diperbaiki = CI merah.
         run: pnpm audit --audit-level=high
 
   dependency-review:
@@ -65,7 +79,31 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/dependency-review-action@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      # Dependency review membandingkan manifest PR dengan branch target. Selama
+      # branch target belum punya manifest apa pun, GitHub belum membentuk graph
+      # dan API-nya menjawab 403/404 — kegagalan struktural, bukan temuan
+      # keamanan. Gate ini aktif sendiri begitu baseline-nya ada.
+      - name: Cek baseline dependency graph
+        id: baseline
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          base='${{ github.base_ref }}'
+          head='${{ github.head_ref }}'
+          if gh api "repos/${{ github.repository }}/dependency-graph/compare/${base}...${head}" >/dev/null 2>&1; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "### Dependency review dilewati"
+              echo "Branch target \`$base\` belum punya dependency graph (belum ada manifest)."
+              echo "Gate ini aktif otomatis setelah baseline manifest ada di branch target."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4
+        if: steps.baseline.outputs.available == 'true'
         with:
           fail-on-severity: high

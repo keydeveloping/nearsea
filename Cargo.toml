@@ -1,0 +1,18 @@
+# Workspace kontrak NearSea — SSOT versi dependensi kontrak.
+# Struktur & perintah gate: docs/development/ci-cd.md · AGENTS.md §Build & Test Commands
+[workspace]
+resolver = "2"
+members = ["contract", "market", "factory"]
+
+[workspace.dependencies]
+near-sdk = "5.18"
+near-sdk-contract-tools = "4.0"
+
+# Profil rilis dipakai `cargo near build` (ukuran wasm + aritmetika ter-cek).
+[profile.release]
+codegen-units = 1
+opt-level = "z"
+lto = true
+debug = false
+panic = "abort"
+overflow-checks = true

@@ -1,0 +1,17 @@
+[package]
+name = "nearsea-nft-collection"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+near-sdk = { workspace = true }
+near-sdk-contract-tools = { workspace = true }
+
+# Fitur `unit-testing` membuat near-sdk bisa dikompilasi untuk host (target test),
+# bukan hanya wasm — tanpa ini `cargo test` gagal di compile_error near-sdk.
+[dev-dependencies]
+near-sdk = { workspace = true, features = ["unit-testing"] }

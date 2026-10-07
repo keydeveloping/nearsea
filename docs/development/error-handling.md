@@ -133,8 +133,9 @@ idle ──submit──► submitted ──masuk blok──► included ──fi
   atau util lain.
 - Modul ini adalah **implementasi** dari katalog §3/§4; **SSOT isinya tetap dokumen ini**.
   Tambah kode baru → update dokumen ini dulu (sesuai [DOCUMENTATION-MAP.md](../DOCUMENTATION-MAP.md) T17), baru modul kode.
-- Path modul ditandai **final saat scaffold** (mis. `frontend/src/lib/errors.ts` untuk sisi FE,
-  modul error server untuk API). Belum dihardcode karena struktur repo belum diputuskan.
+- Path modul **sudah dikunci saat scaffold (TASK-001)**: `frontend/lib/errors/` untuk sisi FE
+  ([frontend-architecture.md](../architecture/frontend-architecture.md) §1), modul error server untuk API.
+  Modul FE belum dibuat — masuk bersama pemakaian pertamanya (TASK-007/008, TASK-033).
 - Alasan: mencegah pesan tidak konsisten antar layar, memudahkan audit (satu tempat), dan
   memastikan pemetaan panic kontrak (§4) hanya ditulis sekali.
 - Selaras dengan perilaku **Surgical Changes** di [AGENTS.md](../../AGENTS.md): ikuti pola yang
@@ -403,5 +404,5 @@ Spesifikasi agar notifikasi tidak berantakan (§6) — nilai final dapat disetel
 - Envelope + namespace + siklus tx + kebijakan notifikasi — **DECIDED (ronde 14)**.
 - Katalog i18n, status HTTP per kode, kode per domain, `requestId`, retry/backoff, toast, versioning kode (§9–§15) — **DECIDED (ronde 15)**.
 - Registry kode dilengkapi saat implementasi API (Fase 2); pemetaan panic kontrak diuji di E2E.
-- Modul error terpusat (§8) — **PROPOSED**, dibuat saat scaffold (path final menyusul).
+- Modul error terpusat (§8) — **path dikunci TASK-001** (`frontend/lib/errors/`); modulnya sendiri dibuat bersama pemakaian pertamanya (TASK-007/008, TASK-033).
 - Nilai tampilan toast (durasi/posisi) — **PROPOSED** (final saat branding TASK-008b); struktur §14 mengikat.

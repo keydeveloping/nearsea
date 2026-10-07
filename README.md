@@ -53,16 +53,23 @@ Near Marketplace/
 ├── .gitattributes             # normalisasi line ending
 ├── .editorconfig              # konsistensi indentasi/encoding
 ├── .gitleaks.toml             # konfigurasi secret scan
-├── rust-toolchain.toml        # pin toolchain Rust (1.77.1) — SSOT versi
-├── .nvmrc                     # pin Node (20) — SSOT versi
+├── Cargo.toml                 # workspace kontrak (contract/market/factory) + profil rilis
+├── Cargo.lock                 # lockfile workspace (WAJIB di-commit — SEC-CICD-001)
+├── rust-toolchain.toml        # pin toolchain Rust (1.93.1) — SSOT versi
+├── .nvmrc                     # pin Node (24 LTS) — SSOT versi
+├── contract/                  # kontrak NFT koleksi (TASK-002..003)
+├── market/                    # kontrak market (TASK-004..005)
+├── factory/                   # kontrak factory (TASK-012)
+├── frontend/                  # Next.js App Router + TS strict + Tailwind + Vitest
 ├── .github/
-│   ├── workflows/
-│   │   ├── ci.yml             # fmt/clippy/test + lint/build + artifact
-│   │   ├── security.yml       # gitleaks + audit + dependency review
-│   │   ├── deploy-dev.yml     # auto-deploy staging
-│   │   ├── deploy-testnet.yml # auto-deploy testnet (gate CI)
-│   │   └── deploy-mainnet.yml # manual + approval + gate
-│   └── (CODEOWNERS, dependabot.yml — PROPOSED, ditambah saat scaffold)
+│   ├── CODEOWNERS             # reviewer otomatis per area (git-workflow §10)
+│   ├── dependabot.yml         # PR dependency mingguan → dev (git-workflow §14)
+│   └── workflows/
+│       ├── ci.yml             # fmt/clippy/test + build wasm + lint/typecheck/test/build
+│       ├── security.yml       # gitleaks + audit + dependency review
+│       ├── deploy-dev.yml     # manual — aktif saat TASK-028/029
+│       ├── deploy-testnet.yml # manual — aktif saat TASK-028/029
+│       └── deploy-mainnet.yml # manual + approval + gate
 ├── docs/                      # source of truth
 │   ├── 00-project-overview.md … 04-ux-ui-spec.md
 │   ├── DOCUMENTATION-MAP.md   # peta sinkronisasi dokumen
@@ -84,7 +91,7 @@ Near Marketplace/
     └── implementation-plan.md # urutan kerja per fase
 ```
 
-> Struktur kode (`contract/`, `market/`, `factory/`, `frontend/`, `indexer/`) dibuat pada TASK-001 (Fase 1) — lihat [tasks/implementation-plan.md](./tasks/implementation-plan.md).
+> Struktur kode (`contract/`, `market/`, `factory/`, `frontend/`) dibuat pada TASK-001 (Fase 1) — lihat [tasks/implementation-plan.md](./tasks/implementation-plan.md). `indexer/` menyusul di fase 2 (TASK-014).
 
 ## Prerequisites
 
@@ -92,16 +99,17 @@ Near Marketplace/
 
 | Alat | Versi | Catatan |
 |---|---|---|
-| **Rust** | **1.77.1** — SSOT: [`rust-toolchain.toml`](./rust-toolchain.toml) | `rustup` otomatis memakai versi ter-pin; target `wasm32-unknown-unknown` sudah didaftarkan di file itu |
-| `cargo-near` | terbaru | `cargo install cargo-near` (build/deploy wasm) |
-| **Node.js** | **20 LTS** — SSOT: [`.nvmrc`](./.nvmrc) | CI memakai Node 20 |
-| **pnpm** | **9.x** | package manager FE (CI memakai pnpm 9) |
-| **PostgreSQL** | 15+ (Docker) | untuk API/report & migration |
+| **Rust** | **1.93.1** — SSOT: [`rust-toolchain.toml`](./rust-toolchain.toml) | `rustup` otomatis memakai versi ter-pin; target `wasm32-unknown-unknown` sudah didaftarkan di file itu |
+| `cargo-near` | **0.22.0** | build wasm; versi + sha256 di-pin di CI, bukan `cargo install` tanpa pin |
+| **Node.js** | **24 LTS** — SSOT: [`.nvmrc`](./.nvmrc) | CI memakai versi yang sama (`node-version-file`) |
+| **pnpm** | **10.x** — SSOT: `packageManager` di `frontend/package.json` | package manager FE; CI membacanya dari manifest |
+| **PostgreSQL** | 15+ (Docker) | untuk API/report & migration (belum dibutuhkan sampai TASK-018) |
 | Docker + Compose | terbaru | DB lokal & stack VPS |
 | `near-cli-rs` | terbaru | interaksi akun/kontrak (opsional untuk dev) |
 | `gitleaks` | terbaru | secret scan lokal (opsional; CI wajib) |
 | `pre-commit` | terbaru | hook lokal (PROPOSED — [code-standards.md](./docs/development/code-standards.md) §14) |
 
+- **Windows:** build host (`cargo test`) memerlukan MSVC C++ build tools + NASM (dipakai `aws-lc-sys` lewat `near-crypto` saat fitur `unit-testing` aktif). Build wasm (`cargo near build --no-abi`) tidak memerlukannya. Di CI (Linux) keduanya sudah tersedia.
 - Akun testnet + faucet NEAR diperlukan untuk uji end-to-end ([docs/testing/testing-strategy.md](./docs/testing/testing-strategy.md) § Penyediaan environment E2E).
 - **Jangan** pernah memakai akun/dana mainnet untuk development.
 
@@ -113,28 +121,24 @@ git clone <repo-url> nearsea && cd nearsea
 cp .env.example .env            # isi nilai lokal; .env TIDAK di-commit
 chmod 600 .env
 
-# 2. Kontrak — build + test (sandbox/localnet).
-cd contract
-cargo near build                # build wasm
-cargo test                      # unit + sandbox (near-workspaces)
-cd ..
+# 2. Kontrak — build + test (workspace: contract/market/factory).
+cargo test --workspace          # unit (host) — butuh fitur `unit-testing` (sudah diset)
+cargo near build non-reproducible-wasm --no-abi --manifest-path contract/Cargo.toml
+#   ulangi untuk market/ dan factory/; hasil: target/near/<crate>/<crate>.wasm
+#   (ABI + mode reproducible aktif saat rilis kontrak pertama — TASK-032)
 
-# 3. Database lokal (Docker).
-docker compose -f docker-compose.dev.yml up -d db
-docker compose -f docker-compose.dev.yml run --rm web pnpm prisma migrate deploy
-
-# 4. Frontend + API (dev).
+# 3. Frontend (dev). Database/API menyusul di TASK-018.
 cd frontend
 pnpm install --frozen-lockfile
 pnpm dev                        # http://localhost:3000
 
-# 5. Pemeriksaan wajib sebelum PR (sama dengan gate CI).
-cargo fmt --all -- --check && cargo clippy --all-targets -- -D warnings
-pnpm --dir frontend lint && pnpm --dir frontend typecheck && pnpm --dir frontend test
+# 4. Pemeriksaan wajib sebelum PR (sama dengan gate CI).
+cargo fmt --all -- --check && cargo clippy --all-targets -- -D warnings && cargo test --workspace
+pnpm --dir frontend lint && pnpm --dir frontend format:check && pnpm --dir frontend typecheck && pnpm --dir frontend test && pnpm --dir frontend build
 gitleaks detect --config .gitleaks.toml --redact   # secret scan
 ```
 
-- Perintah di atas = **target**; sebagian baru jalan setelah scaffold TASK-001 (manifest belum ada). Sketsa awal sebelumnya digantikan langkah ini.
+- Perintah di atas sudah jalan sejak TASK-001 (scaffold). Yang belum ada: Docker Compose + Prisma migrate (TASK-018/028) dan E2E Playwright (TASK-008).
 - Bootstrap lengkap per environment: [docs/deployment/environments.md](./docs/deployment/environments.md) § Bootstrap lokal.
 - Alur kerja branch & PR: [docs/development/git-workflow.md](./docs/development/git-workflow.md). Rilis & versi: [docs/development/versioning-and-release.md](./docs/development/versioning-and-release.md).
 

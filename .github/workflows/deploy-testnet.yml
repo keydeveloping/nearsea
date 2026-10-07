@@ -1,16 +1,16 @@
 # =============================================================================
 # Deploy — TESTNET (branch `testnet`)
-# SKELETON. Deploy ke environment testnet publik (staging testnet terpisah).
-# CATATAN: deploy kontrak testnet TIDAK mengubah mainnet, tapi tetap ter-gate
-# environment (approval 1 orang) agar tidak tak sengaja menimpa rilis testnet.
-# Aturan: docs/development/git-workflow.md + docs/development/ci-cd.md
+# BELUM mengirim apa pun: environment testnet (VPS + subdomain) belum
+# di-provision (TASK-028) dan wiring SSH belum dikonfigurasi (TASK-029).
+# Deploy kontrak testnet TIDAK mengubah mainnet, tapi tetap ter-gate environment
+# (approval 1 orang) agar tidak tak sengaja menimpa rilis testnet.
+# Aturan branch & promosi: docs/development/git-workflow.md §3
 # =============================================================================
 
 name: Deploy (testnet)
 
 on:
-  push:
-    branches: [testnet]
+  # Manual saja sampai TASK-029 menambahkan trigger `push: branches: [testnet]`.
   workflow_dispatch:
 
 permissions:
@@ -28,7 +28,25 @@ jobs:
       name: testnet
       url: ${{ vars.TESTNET_APP_URL }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Cek prasyarat environment (TASK-028/029)
+        run: |
+          missing=""
+          for name in TESTNET_HOST TESTNET_SSH_USER TESTNET_APP_DIR TESTNET_APP_URL; do
+            eval "value=\${$name}"
+            [ -n "$value" ] || missing="$missing $name"
+          done
+          if [ -n "$missing" ]; then
+            echo "Environment testnet belum di-provision — variabel kosong:$missing"
+            echo "Selesaikan TASK-028 (VPS + Docker Compose) dan TASK-029 (wiring deploy) dulu."
+            exit 1
+          fi
+        env:
+          TESTNET_HOST: ${{ vars.TESTNET_HOST }}
+          TESTNET_SSH_USER: ${{ vars.TESTNET_SSH_USER }}
+          TESTNET_APP_DIR: ${{ vars.TESTNET_APP_DIR }}
+          TESTNET_APP_URL: ${{ vars.TESTNET_APP_URL }}
 
       - name: Setup SSH deploy key
         run: |
@@ -45,8 +63,9 @@ jobs:
       - name: Verify contract code hash (SEC-CONTRACT-006)
         run: |
           # Bandingkan hash artifact CI dengan contract_source_metadata on-chain.
-          # Placeholder: perintah final diisi saat scaffold kontrak (Fase 1).
-          echo "TODO(scaffold): near view <contract> contract_source_metadata | verify hash"
+          # Diaktifkan bersama build reproducible + NEP-330 (TASK-032, ci-cd.md §14).
+          echo "PROPOSED (TASK-032): near view <contract> contract_source_metadata | verify hash"
 
       - name: Smoke test
-        run: curl -fsS "${{ vars.TESTNET_APP_URL }}/api/health" || exit 1
+        run: |
+          curl -fsS "${{ vars.TESTNET_APP_URL }}/api/health" || exit 1

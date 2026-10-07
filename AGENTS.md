@@ -205,18 +205,21 @@ Detail lengkap: **[docs/development/secrets-and-gitignore.md](./docs/development
 > Perintah ini = padanan gate CI lokal. Jalankan yang relevan dengan perubahanmu; jangan mengandalkan CI untuk menemukan masalah yang bisa dilihat lokal.
 
 ```bash
-# --- Kontrak (Rust) ---
+# --- Kontrak (Rust) — workspace root: contract/ market/ factory/ ---
 cargo fmt --all -- --check                 # format
 cargo clippy --all-targets -- -D warnings  # lint (wajib 0 warning)
-cargo test --workspace                     # unit + sandbox (near-workspaces)
-cargo near build                           # build wasm (mode reproducible saat rilis)
-cargo audit                                # CVE dependency
+cargo test --workspace                     # unit (host; fitur `unit-testing` sudah diset)
+cargo near build non-reproducible-wasm --no-abi --manifest-path contract/Cargo.toml
+#   ulangi untuk market/ dan factory/; hasil: target/near/<crate>/<crate>.wasm
+#   (ABI + mode reproducible saat rilis — TASK-032)
+cargo audit                                # CVE dependency (dari root workspace)
 
 # --- Frontend / API (pnpm, TypeScript strict) ---
 pnpm --dir frontend install --frozen-lockfile
 pnpm --dir frontend lint
+pnpm --dir frontend format:check           # Prettier
 pnpm --dir frontend typecheck
-pnpm --dir frontend test -- --run          # Vitest
+pnpm --dir frontend test                   # Vitest
 pnpm --dir frontend build
 pnpm audit --audit-level=high
 
@@ -231,9 +234,10 @@ pnpm --dir frontend exec playwright test   # E2E jalur emas (testnet; pra-rilis/
 ```
 
 - Perubahan kontrak: **wajib** `fmt` + `clippy` + `test` hijau sebelum PR.
-- Perubahan FE/API: **wajib** `lint` + `typecheck` + `test` hijau; endpoint baru wajib punya test happy + error.
+- Perubahan FE/API: **wajib** `lint` + `format:check` + `typecheck` + `test` hijau; endpoint baru wajib punya test happy + error.
 - Perubahan schema: **wajib** migration + `down.sql` + gate DB hijau ([migrations.md](./docs/database/migrations.md) §6).
 - Perintah lengkap & anggaran waktu: [docs/development/ci-cd.md](./docs/development/ci-cd.md) dan [docs/testing/testing-strategy.md](./docs/testing/testing-strategy.md).
+- **Windows:** `cargo test` (target host) butuh MSVC C++ build tools + NASM (`aws-lc-sys` lewat `near-crypto` saat fitur `unit-testing` aktif); build wasm tidak butuh. CI (Linux) sudah lengkap.
 
 ## Code Review Checklist (untuk reviewer & self-review)
 

@@ -1,0 +1,4 @@
+# rustfmt — konfigurasi format Rust (dirujuk docs/development/code-standards.md §5).
+# `imports_granularity`/`group_imports` masih nightly-only; sengaja tidak dipasang
+# supaya `cargo fmt` di toolchain ter-pin (1.93.1) tidak gagal.
+edition = "2021"

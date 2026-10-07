@@ -4,15 +4,20 @@
 > **Definisi pipeline & gate ada di [development/ci-cd.md](../development/ci-cd.md)** — dokumen ini fokus ke aspek keamanannya.
 > Aturan branch: [development/git-workflow.md](../development/git-workflow.md). Higienitas secret: [development/secrets-and-gitignore.md](../development/secrets-and-gitignore.md).
 
-## 1. Pipeline (target — PROPOSED, diimplementasi saat scaffold Fase 1)
+## 1. Pipeline (CI + Security AKTIF; deploy PROPOSED)
 
 ```text
 PULL REQUEST   : branch protection (3 branch: dev/testnet/mainnet) → approval + checks hijau
-CI JOB         : cargo fmt/clippy/test (sandbox) + npm audit/cargo audit + build wasm + build FE
-SECURITY JOB   : secret scanning (gitleaks) + dependency review
-ARTIFACT       : wasm + FE bundle; SIMPAN code hash (sha256) di build summary
-DEPLOY         : dev/testnet = auto (gate CI); mainnet = manual-trigger + approval → SSH ke VPS → docker compose pull/up
+                 (proteksi branch = PROPOSED, TASK-031 — butuh remote GitHub)
+CI JOB         : cargo fmt/clippy/test + build wasm (3 crate) + artifact hash   [AKTIF]
+                 + FE lint/format/typecheck/test/build                            [AKTIF]
+                 + npm audit/cargo audit                                          [AKTIF di Security job]
+SECURITY JOB   : secret scanning (gitleaks) + dependency review + audit          [AKTIF]
+ARTIFACT       : wasm + code hash (sha256); disimpan 90 hari                     [AKTIF]
+DEPLOY         : dev/testnet = auto (gate CI); mainnet = manual + approval → SSH ke VPS → docker compose pull/up
+                 [PROPOSED — TASK-028/029; workflow manual-only + guard sampai environment ada]
 POST-DEPLOY    : verifikasi code hash kontrak on-chain == hash artifact (SEC-CONTRACT-006); smoke test endpoint
+                 [PROPOSED — aktif bersama build reproducible, TASK-032]
 ```
 
 ## 2. Kontrol per area
@@ -42,26 +47,28 @@ POST-DEPLOY    : verifikasi code hash kontrak on-chain == hash artifact (SEC-CON
 
 ## 4. Status
 
-- Semua PROPOSED — jadi prasyarat TASK-001 "Scaffold workspace repo" di [tasks/backlog.md](../../tasks/backlog.md) untuk item CI; verifikasi hash jadi SEC-CONTRACT-006; secret scanning jadi SEC-CICD-002.
+- **CI + Security AKTIF (TASK-001)** — job di [ci.yml](../../.github/workflows/ci.yml) dan [security.yml](../../.github/workflows/security.yml) sudah berisi perintah nyata dan dijalankan terhadap workspace; verifikasi hash jadi SEC-CONTRACT-006; secret scanning jadi SEC-CICD-002. **Deploy** masih PROPOSED (TASK-029; environment belum di-provision — TASK-028).
 - Kerangka workflow sudah disiapkan di `.github/workflows/` (lihat [development/ci-cd.md](../development/ci-cd.md)).
 
-## 5. Action pinning (SHA) — PROPOSED
+## 5. Action pinning (SHA) — AKTIF (TASK-001)
 
 Semua third-party action di-pin ke **commit SHA penuh** (bukan tag bergerak seperti `@v4`), agar tag bisa dibalik tanpa mengubah pipeline. Tag ditulis sebagai komentar untuk keterbacaan.
 
-| Workflow | Action | Pin (PROPOSED — ganti tag → SHA saat scaffold) |
+| Workflow | Action | Pin (SHA penuh) |
 |---|---|---|
-| [ci.yml](../../.github/workflows/ci.yml) | `actions/checkout` | `@<sha> # v4` |
-| ci.yml | `dtolnay/rust-toolchain` | `@<sha> # stable` |
-| ci.yml | `actions/cache` | `@<sha> # v4` |
-| ci.yml | `actions/upload-artifact` | `@<sha> # v4` |
-| ci.yml | `pnpm/action-setup` | `@<sha> # v4` |
-| ci.yml | `actions/setup-node` | `@<sha> # v4` |
-| [security.yml](../../.github/workflows/security.yml) | `gitleaks/gitleaks-action` | `@<sha> # v2` |
-| security.yml | `actions/dependency-review-action` | `@<sha> # v4` |
-| deploy-*.yml | `actions/checkout` | `@<sha> # v4` |
+| [ci.yml](../../.github/workflows/ci.yml) | `actions/checkout` | `11d5960a326750d5838078e36cf38b85af677262` # v4 |
+| ci.yml | `dtolnay/rust-toolchain` | `89b12181fb390509a0842a86cc55eeb8eb928c1d` # stable |
+| ci.yml | `actions/cache` | `0057852bfaa89a56745cba8c7296529d2fc39830` # v4 |
+| ci.yml | `actions/upload-artifact` | `ea165f8d65b6e75b540449e92b4886f43607fa02` # v4 |
+| ci.yml | `pnpm/action-setup` | `b906affcce14559ad1aafd4ab0e942779e9f58b1` # v4 |
+| ci.yml | `actions/setup-node` | `49933ea5288caeca8642d1e84afbd3f7d6820020` # v4 |
+| [security.yml](../../.github/workflows/security.yml) | `gitleaks/gitleaks-action` | `ff98106e4c7b2bc287b24eaf42907196329070c7` # v2 |
+| security.yml | `rustsec/audit-check` | `69366f33c96575abad1ee0dba8212993eecbe998` # v2 |
+| security.yml | `actions/dependency-review-action` | `2031cfc080254a8a887f58cffee85186f0e49e48` # v4 |
+| deploy-*.yml | `actions/checkout` | `11d5960a326750d5838078e36cf38b85af677262` # v4 |
 
-- `<sha>` = commit SHA yang dipilih saat scaffold (TASK-001/029); Dependabot mengusulkan bump SHA via PR.
+- Dependabot mengusulkan bump SHA via PR ke `dev` ([git-workflow.md](../development/git-workflow.md) §14).
+- **`cargo-near` juga di-pin** — versi + sha256, bukan `cargo install` tanpa pin: `cargo-near-v0.22.0`, hash `9429064e30a427e96523f539cb255f3688d2345e5000d7d4e4873a8247247d1a` (`x86_64-unknown-linux-gnu`). Perubahan versi mengubah hash wasm → dicatat di CHANGELOG saat rilis.
 - Action buatan sendiri (composite lokal) tidak perlu pin eksternal.
 - Larangan: action yang mengeksekusi kode arbitrer dari PR (`pull_request_target` + checkout PR) — sudah dilarang §2.
 
