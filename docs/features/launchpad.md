@@ -146,9 +146,9 @@ storage:  storage_deposit / storage_withdraw (NEP-145)
 
 | Kasus | Perlakuan |
 |---|---|
-| Waktu mint tepat di `starts_at` / tepat di `ends_at` | ⏳ open-by-design — definisi inklusif/eksklusif batas window fase dikunci saat implementasi kontrak (konvensi "batas inklusif" di [marketplace.md](./marketplace.md) tidak otomatis dipakai untuk window fase) |
-| `allocation = 0` | Tidak ada mint yang bisa sukses dari fase tsb (selalu `LAUNCHPAD_ALLOCATION_EXHAUSTED`); boleh/tidaknya dikonfigurasi = ⏳ open-by-design |
-| `max_per_wallet = 0` | ⏳ open-by-design — 0 = dilarang mint atau tak terbatas; semantik final di [nft-collection.md](../contracts/nft-collection.md) |
+| Waktu mint tepat di `starts_at` / tepat di `ends_at` | **DECIDED (ronde 19, implementasi TASK-002)** — window `[starts_at, ends_at)`: `starts_at` inklusif, `ends_at` eksklusif (SSOT: [contracts/nft-collection.md](../contracts/nft-collection.md) §3) |
+| `allocation = 0` | **DECIDED (ronde 19, implementasi TASK-002)** — ditolak saat konfigurasi fase (`set_phases` → `CHAIN_REVERT`); nilai 0 tidak pernah masuk state |
+| `max_per_wallet = 0` | **DECIDED (ronde 19, implementasi TASK-002)** — ditolak saat konfigurasi fase (`set_phases` → `CHAIN_REVERT`); 0 = tanpa batas **tidak** dipakai karena ambigu |
 | Slug sudah dipakai | Deploy ditolak (sub-akun `<slug>.<factory>` sudah ada) → creator pilih slug lain; aturan charset/panjang slug = ⏳ open-by-design |
 | Baris allowlist `max_mints > max_per_wallet` | Upload ditolak dengan pesan baris yang salah (AC-COLL-4) |
 | Mint qty > alokasi tersisa | Ditolak (INV-017, `LAUNCHPAD_ALLOCATION_EXHAUSTED`) |
