@@ -30,7 +30,7 @@ Milestone: M0 | M1 | M2 | M3 | M4
 
 | ID | Judul | Area | Priority | Depends | Spec | Status | Estimate | Done-when | Milestone |
 |---|---|---|---|---|---|---|---|---|---|
-| TASK-001 | Scaffold workspace repo (contract/market/factory/frontend) + CI gates + SEC-* P0 | infra | P0 | — | implementation-plan | in-progress | 3 | CI + Security hijau di `dev`; semua manifest & workflow ada | M0 |
+| TASK-001 | Scaffold workspace repo (contract/market/factory/frontend) + CI gates + SEC-* P0 | infra | P0 | — | implementation-plan | done | 3 | CI + Security hijau di `dev`; semua manifest & workflow ada | M0 |
 | TASK-002 | Kontrak NFT: NEP-171/177/178/181/297 + mint + events (near-sdk-contract-tools) + **`set_phases` minimal (satu fase publik)** — wajib agar `nft_mint` bisa dipanggil (mint = launchpad-aware, INV-017) | contract | P0 | 001 | features/marketplace + contracts/nft-collection.md | todo | 4 | `cargo test` hijau; mint + transfer + events lolos TC-001 | M1 |
 | TASK-003 | Kontrak NFT: royalty NEP-199 (cap 10%) | contract | P0 | 002 | features/marketplace | todo | 1 | Payout royalti ≤10% teruji (INV-003/027) | M1 |
 | TASK-004 | Kontrak market: storage NEP-145 + listing 2-tx + dual verification | contract | P0 | 002 | features/marketplace | todo | 4 | List/cancel + storage deposit lolos (INV-020, TC-002) | M1 |

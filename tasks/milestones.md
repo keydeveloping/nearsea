@@ -11,7 +11,7 @@
 
 - Semua dokumen inti terisi (hasil tanya-jawab + audit), stack final, repo scaffold.
 - Done when: agent bisa mulai koding tanpa bertanya arah.
-- **Status TASK-001 (2026-10-07):** workspace + manifest + workflow ada dan **semua gate hijau lokal** (fmt/clippy/test kontrak; lint/format/typecheck/test/build FE). Sisa satu butir untuk menutup M0: push ke remote GitHub agar CI + Security benar-benar hijau di `dev` (butuh keputusan user — repo masih lokal).
+- **Status TASK-001 (2026-10-07): ✅ `done`.** Workspace + manifest + workflow ada dan gate hijau di dua tempat: lokal (fmt/clippy/test kontrak; lint/format/typecheck/test/build FE) **dan** CI GitHub di branch `dev` (PR #1, commit `223015b` — run CI + Security `success`). Repo remote: `github.com/keydeveloping/nearsea`. M0 tertutup; TASK-031 (proteksi branch) menjadi pekerjaan berikutnya.
 
 ## M1 — Vertical slice: mint → list → buy (testnet) ⭐ **milestone pertama yang wajib**
 
