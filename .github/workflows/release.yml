@@ -1,0 +1,241 @@
+# =============================================================================
+# Release — NearSea
+# Dipicu oleh tag rilis (`contract-v*` / `web-v*` / `indexer-v*`), atau manual
+# (`workflow_dispatch`) untuk uji-kering jalur rilis dari sebuah branch.
+#
+# Tugas: (1) pastikan versi manifest == versi tag, (2) build kontrak secara
+# reproducible (NEP-330) dan buktikan metadata yang tertanam == tag,
+# (3) lampirkan artifact + hash ke GitHub Release.
+#
+# Aturan: docs/development/versioning-and-release.md §2/§5/§12/§14
+#         docs/development/ci-cd.md §5/§14 · docs/security/cicd-security.md §3/§5
+# Semua action pihak ketiga di-pin ke commit SHA (cicd-security.md §5).
+# =============================================================================
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'contract-v*'
+      - 'web-v*'
+      - 'indexer-v*'
+  # Uji-kering: menjalankan seluruh jalur rilis TANPA membuat tag/release.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag rilis yang disimulasikan (mis. contract-v0.1.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  # --- 1. Versi manifest == versi tag (versioning-and-release.md §14) ----------
+  verify-version:
+    name: Release — version ↔ tag consistency
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      tag: ${{ steps.resolve.outputs.tag }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      # Satu sumber untuk tag: push tag memakai ref-nya, uji-kering memakai input.
+      - name: Resolve release tag
+        id: resolve
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            tag="${{ inputs.tag }}"
+          else
+            tag="${GITHUB_REF_NAME}"
+          fi
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "Tag rilis: ${tag}"
+
+      - name: Manifest version must match tag
+        run: |
+          set -euo pipefail
+          tag="${{ steps.resolve.outputs.tag }}"
+
+          # Nilai versi dibaca dari manifest artefak — SSOT-nya file itu sendiri.
+          cargo_version() {
+            awk -F'"' '/^\[package\]/{p=1} p && /^version[[:space:]]*=/{print $2; exit}' "$1"
+          }
+          json_version() {
+            sed -nE 's/^[[:space:]]*"version"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' "$1" | head -n1
+          }
+
+          case "$tag" in
+            contract-v*)
+              expected="${tag#contract-v}"
+              manifests=(contract/Cargo.toml market/Cargo.toml factory/Cargo.toml)
+              reader=cargo_version
+              ;;
+            web-v*)
+              expected="${tag#web-v}"
+              manifests=(frontend/package.json)
+              reader=json_version
+              ;;
+            indexer-v*)
+              expected="${tag#indexer-v}"
+              manifests=(indexer/package.json)
+              reader=json_version
+              ;;
+            *)
+              echo "Tag '$tag' tidak cocok pola rilis yang dikenal."
+              exit 1
+              ;;
+          esac
+
+          failed=0
+          for manifest in "${manifests[@]}"; do
+            if [ ! -f "$manifest" ]; then
+              echo "FAIL $manifest tidak ada (tag $(basename "$tag") tidak punya manifest)"
+              failed=1
+              continue
+            fi
+            got=$("$reader" "$manifest")
+            if [ "$got" = "$expected" ]; then
+              echo "OK   $manifest = $got"
+            else
+              echo "FAIL $manifest = '$got' (diharapkan '$expected')"
+              failed=1
+            fi
+          done
+          if [ "$failed" -ne 0 ]; then
+            echo "Tag $tag tidak cocok dengan versi manifest — rilis digagalkan."
+            exit 1
+          fi
+          echo "Semua manifest cocok dengan tag $tag."
+
+  # --- 2. Build reproducible + bukti NEP-330 (SEC-CONTRACT-006) ---------------
+  contract-reproducible:
+    name: Contract — reproducible build + NEP-330
+    needs: verify-version
+    if: startsWith(needs.verify-version.outputs.tag, 'contract-v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write # membuat GitHub Release + melampirkan artifact
+    env:
+      RELEASE_TAG: ${{ needs.verify-version.outputs.tag }}
+    steps:
+      # fetch-depth 0: build reproducible meng-clone repo, bukan memakai worktree.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      # Toolchain runner dipakai langkah verifikasi teks (grep/sed); build wasm
+      # sendiri terjadi DI DALAM container reproducible.
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      # cargo-near dipasang dari rilis resmi dengan versi + hash ter-pin
+      # (bukan `cargo install` tanpa pin — cicd-security.md §3).
+      - name: Install cargo-near (pinned)
+        env:
+          CARGO_NEAR_VERSION: 0.22.0
+          CARGO_NEAR_SHA256: 9429064e30a427e96523f539cb255f3688d2345e5000d7d4e4873a8247247d1a
+        run: |
+          set -euo pipefail
+          archive="cargo-near-x86_64-unknown-linux-gnu.tar.gz"
+          curl -fsSL -o "$archive" \
+            "https://github.com/near/cargo-near/releases/download/cargo-near-v${CARGO_NEAR_VERSION}/${archive}"
+          echo "${CARGO_NEAR_SHA256}  ${archive}" | sha256sum --check --strict
+          tar -xzf "$archive"
+          install -m 0755 cargo-near-x86_64-unknown-linux-gnu/cargo-near "$HOME/.cargo/bin/cargo-near"
+          cargo near --version
+
+      - name: Resolve release tag
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            tag="${{ inputs.tag }}"
+          else
+            tag="${GITHUB_REF_NAME}"
+          fi
+          echo "RELEASE_TAG=${tag}" >> "$GITHUB_ENV"
+
+      # Build di container ter-pin by digest — toolchain rilis = isi image,
+      # bukan rust-toolchain.toml lokal (versioning-and-release.md §2).
+      # Tiap crate masuk sub-folder sendiri agar nama file wasm tidak bertabrakan.
+      - name: Reproducible build (NEP-330)
+        run: |
+          set -euo pipefail
+          for crate in contract market factory; do
+            cargo near build reproducible-wasm \
+              --manifest-path "$crate/Cargo.toml" \
+              --out-dir "artifacts/$crate"
+          done
+          find artifacts -name '*.wasm' -type f | sort
+
+      - name: Verify embedded NEP-330 metadata matches tag
+        run: |
+          set -euo pipefail
+          expected="${RELEASE_TAG#contract-v}"
+          repo="https://github.com/${GITHUB_REPOSITORY}"
+          checked=0
+
+          while IFS= read -r wasm; do
+            # Metadata NEP-330 tertanam sebagai string JSON di dalam wasm.
+            meta=$(grep -a -o -E '\{"version":"[^"]+","link":(null|"[^"]+"),' "$wasm" | head -n1 || true)
+            if [ -z "$meta" ]; then
+              echo "$wasm: contract_source_metadata tidak tertanam"
+              exit 1
+            fi
+
+            got=$(printf '%s' "$meta" | sed -E 's/^\{"version":"([^"]+)".*/\1/')
+            link=$(printf '%s' "$meta" | sed -E 's/^.*"link":([^,]+),$/\1/')
+            echo "$wasm: version=$got link=$link"
+
+            if [ "$got" != "$expected" ]; then
+              echo "$wasm: versi NEP-330 '$got' != versi tag '$expected'"
+              exit 1
+            fi
+            if [ "$link" != "\"$repo\"" ]; then
+              echo "$wasm: link NEP-330 '$link' != '$repo' (package.repository)"
+              exit 1
+            fi
+            checked=$((checked + 1))
+          done < <(find artifacts -name '*.wasm' -type f | sort)
+
+          # Tiga crate kontrak wajib terverifikasi — artifact hilang = rilis gagal.
+          if [ "$checked" -ne 3 ]; then
+            echo "Hanya $checked wasm terverifikasi (diharapkan 3: contract, market, factory)"
+            exit 1
+          fi
+          echo "$checked wasm terverifikasi."
+
+      - name: Record wasm code hash (sha256)
+        run: |
+          set -euo pipefail
+          find artifacts -name '*.wasm' -type f | sort | xargs sha256sum | tee artifacts/code-hash.txt
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-${{ env.RELEASE_TAG }}
+          retention-days: 90
+          path: |
+            artifacts/**/*.wasm
+            artifacts/code-hash.txt
+
+      # Artifact rilis wajib dilampirkan ke GitHub Release agar tidak hilang
+      # saat retensi Actions habis (ci-cd.md §13). Tidak dijalankan saat uji-kering.
+      - name: Publish GitHub Release
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mapfile -t wasm < <(find artifacts -name '*.wasm' -type f | sort)
+          gh release create "${RELEASE_TAG}" \
+            --title "${RELEASE_TAG}" \
+            --generate-notes \
+            --verify-tag \
+            artifacts/code-hash.txt "${wasm[@]}"

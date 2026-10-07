@@ -20,12 +20,16 @@
 ```text
 1. PR OPEN        → CI + Security jalan (lihat .github/workflows/)
 2. CI             → cargo fmt/clippy/test (sandbox) + lint/typecheck/test/build FE
-                    + cargo audit / npm audit + build wasm + upload artifact + code hash
+                    + cargo audit / npm audit + build wasm+ABI + verifikasi NEP-330
+                    + upload artifact + code hash
 3. SECURITY       → secret scanning (gitleaks) + dependency review + audit dependensi
 4. MERGE          → hanya jika semua check hijau + approval cukup
-5. DEPLOY         → workflow per-branch (SSH ke VPS → docker compose pull/up)
-6. POST-DEPLOY    → verifikasi hash kontrak (NEP-330) + smoke test /api/health
-7. ROLLBACK       → revert merge commit di branch target + deploy ulang (jika perlu)
+5. RELEASE        → tag `*-vX.Y.Z` (di mainnet) memicu release.yml: versi manifest == tag,
+                    build reproducible di container ter-pin, metadata NEP-330 == tag,
+                    artifact + hash dilampirkan ke GitHub Release
+6. DEPLOY         → workflow per-branch (SSH ke VPS → docker compose pull/up)
+7. POST-DEPLOY    → verifikasi hash kontrak (NEP-330) + smoke test /api/health
+8. ROLLBACK       → revert merge commit di branch target + deploy ulang (jika perlu)
 ```
 
 ## 3. Gate (wajib lulus sebelum merge/deploy)
@@ -37,6 +41,8 @@
 | Lint + format + typecheck + test + build | FE | blok merge |
 | `cargo audit` / `pnpm audit` (critical/high) | semua | blok merge |
 | Secret scanning (gitleaks) | semua | blok merge |
+| Metadata NEP-330 (versi + link tertanam) | kontrak | blok merge |
+| Versi manifest == tag rilis | kontrak/web/indexer | blok rilis |
 | Reproducible build + verifikasi hash | kontrak (testnet/mainnet) | blok deploy |
 | Audit eksternal lulus | kontrak (mainnet, TASK-027) | blok deploy |
 
@@ -75,7 +81,7 @@
 
 ## 7. Workflow YAML (referensi file nyata)
 
-Lima file di `.github/workflows/` adalah **file nyata** (perintah sudah dijalankan & diverifikasi lokal saat TASK-001). Cuplikan kunci:
+Enam file di `.github/workflows/` adalah **file nyata** (perintah sudah dijalankan & diverifikasi lokal saat TASK-001; `release.yml` ditambahkan TASK-032). Cuplikan kunci:
 
 **ci.yml — job kontrak (potongan):**
 
@@ -110,7 +116,15 @@ contracts:
         install -m 0755 cargo-near-x86_64-unknown-linux-gnu/cargo-near "$HOME/.cargo/bin/cargo-near"
     - run: |
         for crate in contract market factory; do
-          cargo near build non-reproducible-wasm --no-abi --manifest-path "$crate/Cargo.toml"
+          cargo near build non-reproducible-wasm --manifest-path "$crate/Cargo.toml"
+        done
+    # Verifikasi metadata NEP-330 (versi + link) — lihat §14.
+    - run: |
+        set -euo pipefail
+        for crate in contract market factory; do
+          pkg=$(awk -F'"' '/^\[package\]/{p=1} p && /^name[[:space:]]*=/{print $2; exit}' "$crate/Cargo.toml")
+          wasm="target/near/${pkg//-/_}/${pkg//-/_}.wasm"
+          grep -a -o -E '\{"version":"[^"]+","link":"[^"]+",' "$wasm" >/dev/null
         done
     - run: |
         mkdir -p artifacts
@@ -125,7 +139,7 @@ contracts:
 ```
 
 - **Glob artifact = `target/near/*/*.wasm`** — `cargo-near` menaruh hasil di sub-folder per crate (`target/near/<crate>/<crate>.wasm`), bukan langsung di `target/near/`.
-- `--no-abi` pada gate build: ABI + build reproducible diaktifkan saat rilis kontrak pertama (TASK-032, §14). Ini juga membuat gate bisa dijalankan di Windows lokal (langkah ABI butuh linking native).
+- Build di gate PR kini **dengan ABI** (TASK-032): ABI dibangkitkan & disematkan, dan metadata NEP-330 (versi + link) diverifikasi tiap PR. Build **reproducible** (container Docker ter-pin by digest) tidak dijalankan di sini — itu milik [release.yml](../../.github/workflows/release.yml), karena butuh Docker dan toolchain ter-pin. Catatan Windows lokal: langkah ABI butuh linking native, jadi gate ABI hanya jalan di CI/Linux.
 
 **deploy-*.yml — pola SSH deploy (potongan):**
 
@@ -278,24 +292,31 @@ sha256sum target/near/*/*.wasm | diff - artifacts/code-hash.txt
 
 ```text
 A. BUILD (lingkungan terkunci)
-   1. Build reproducible: `cargo near build` (mode reproducible) di runner dengan toolchain
-      di-pin (versi rust + wasm-opt + near-sdk identik dengan rilis).
-   2. Hasil: target/near/<crate>/<crate>.wasm
-   3. HITUNG hash:  sha256sum target/near/*/*.wasm  → simpan sebagai artifact
-                    (mis. artifacts/code-hash.txt)
+   1. Build reproducible: `cargo near build reproducible-wasm` — dijalankan DI DALAM
+      container Docker yang di-pin by digest di [package.metadata.near.reproducible_build]
+      (image = toolchain rilis; rust-toolchain.toml repo tidak dipakai).
+   2. Hasil: artifacts/<crate>/*.wasm (--out-dir menyalin artifact final ke sana)
+   3. HITUNG hash:  find artifacts -name '*.wasm' | xargs sha256sum → artifacts/code-hash.txt
 
-B. PUBLISH metadata on-chain (NEP-330)
-   4. `contract_source_metadata` memuat: version, source URL + commit, build hash.
-   5. Deploy wasm; metadata ikut terpasang.
+B. BUKTI metadata tertanam (NEP-330)
+   4. `contract_source_metadata` (string JSON tertanam di wasm) memuat: `version`,
+      `link` (dari `package.repository`), `standards` (nep330), `build_info`.
+      Ia TIDAK memuat hash — hash artifact dibandingkan terpisah (langkah 6–7).
+   5. Diverifikasi otomatis sebelum artifact dipublikasikan: version == tag rilis,
+      link == URL repo. Gagal → rilis digagalkan (release.yml).
 
-C. BANDINGKAN (post-deploy, otomatis di workflow)
-   6. near view <contract> contract_source_metadata  → ambil `build_hash` / hash yang dipublikasikan
-   7. Bandingkan dengan artifacts/code-hash.txt dari CI.
+C. BANDINGKAN dengan yang berjalan (post-deploy)
+   6. near view <contract> contract_source_metadata → cocokkan `version`/`link` dengan tag;
+      near state <contract> → `code_hash` dibandingkan dengan artifacts/code-hash.txt.
       COCOK    → provenance sah, deploy sukses.
       TIDAK    → deploy GAGAL; jangan promosikan; investigasi (artifact swap — cicd-security §3).
 ```
 
-- [ci.yml](../../.github/workflows/ci.yml) saat ini memakai `cargo near build non-reproducible-wasm --no-abi` (cukup untuk uji); **mode reproducible + ABI** diaktifkan saat rilis kontrak pertama (TASK-032) dan hasil hash dibandingkan persis.
+- [ci.yml](../../.github/workflows/ci.yml) membangun wasm **dengan ABI** dan memverifikasi
+  metadata NEP-330 (versi + link) tiap PR. **Build reproducible penuh** (mode Docker, image
+  ter-pin by digest) berjalan di [release.yml](../../.github/workflows/release.yml) saat tag rilis
+  dibuat — di sana hash artifact dibandingkan persis dan metadata yang tertanam dibuktikan == tag
+  (TASK-032).
 - Verifikasi ulang independen (opsional, gate M4): build di Docker pinned + SourceScan, bandingkan hash dengan metadata on-chain.
 - **Web/indexer**: hash = digest artifact build (image digest Docker). Dibandingkan `git rev-parse HEAD` dengan SHA yang tercatat di artifact/image label; bukan NEP-330.
 - Perubahan toolchain (versi rust/near-sdk) **mengubah hash** meski sumber sama → catat versi toolchain di metadata/summary agar verifikasi bisa direproduksi.
@@ -365,5 +386,8 @@ Aturan rollback:
 - Pipeline & workflow: **CI + Security AKTIF (TASK-001)** — `ci.yml` (fmt/clippy/test + build wasm + lint/format/typecheck/test/build FE) dan `security.yml` (gitleaks + audit + dependency review) sudah berisi perintah nyata dan dijalankan terhadap workspace yang ada. Deploy workflow masih **PROPOSED** (diaktifkan di TASK-029, bersama TASK-028).
 - Strategi merge yang memengaruhi promosi: [git-workflow.md](./git-workflow.md) §9.
 - Caching/timeout/retensi/gate migration/smoke test/notifikasi/rollback (§8–§16) — **DECIDED (ronde 15)**; nilai operasional (retensi, wait timer) boleh disetel saat scaffold.
-- Reproducible build mode + verifikasi hash otomatis (§14) — **PROPOSED** (aktif saat rilis kontrak pertama, TASK-032).
+- Reproducible build mode + verifikasi hash otomatis (§14) — **AKTIF (TASK-032)** di
+  [release.yml](../../.github/workflows/release.yml) (dipicu tag rilis; bisa diuji-kering lewat
+  `workflow_dispatch`). [ci.yml](../../.github/workflows/ci.yml) tetap memakai build cepat
+  (host runner) untuk gate PR, kini **dengan ABI** + verifikasi metadata NEP-330.
 - **Belum ada di CI (sengaja, jangan ditambahkan sebagai required check sebelum job-nya ada):** `API — test` (butuh API + DB, TASK-018), `Fuzz smoke` (TASK-006+), `E2E — golden path` (TASK-008/010).
