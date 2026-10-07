@@ -48,6 +48,7 @@ POST-DEPLOY    : verifikasi code hash kontrak on-chain == hash artifact (SEC-CON
 ## 4. Status
 
 - **CI + Security AKTIF (TASK-001)** — job di [ci.yml](../../.github/workflows/ci.yml) dan [security.yml](../../.github/workflows/security.yml) sudah berisi perintah nyata dan dijalankan terhadap workspace; verifikasi hash jadi SEC-CONTRACT-006; secret scanning jadi SEC-CICD-002. **Deploy** masih PROPOSED (TASK-029; environment belum di-provision — TASK-028).
+- **Branch protection AKTIF (TASK-031, ronde 18c)** — §8. Prasyaratnya terpenuhi setelah repo dijadikan **publik**; saat masih private API menjawab 403 "Upgrade to GitHub Pro".
 - Kerangka workflow sudah disiapkan di `.github/workflows/` (lihat [development/ci-cd.md](../development/ci-cd.md)).
 
 ## 5. Action pinning (SHA) — AKTIF (TASK-001)
@@ -97,26 +98,31 @@ Semua third-party action di-pin ke **commit SHA penuh** (bukan tag bergerak sepe
 
 ## 8. Branch protection (konfigurasi persis) + required checks
 
-Selaras [git-workflow.md](../development/git-workflow.md) §8. Status PROPOSED (TASK-001/031).
+Selaras [git-workflow.md](../development/git-workflow.md) §8. **Status: AKTIF (ronde 18c, TASK-031)** — dipasang lewat API branch protection di repo `keydeveloping/nearsea`.
 
-| Setting | `mainnet` | `testnet` | `dev` |
-|---|---|---|---|
-| Require pull request before merging | ya | ya | ya |
-| Required approvals | **2** | 1 | 1 |
-| Dismiss stale approvals on new commits | ya | ya | ya |
-| Require review from Code Owners | ya (`.github/CODEOWNERS`) | ya | tidak |
-| Require status checks to pass | ya | ya | ya |
-| Require branches up to date | ya | ya | tidak |
-| Require conversation resolution | ya | ya | ya |
-| Require signed commits | RECOMMENDED | RECOMMENDED | tidak |
-| Block force pushes (incl. admins) | ya | ya | ya |
-| Block deletions | ya | ya | ya |
-| Restrict who can push | ya (via PR saja) | ya | tidak |
-| Require linear history | tidak | tidak | tidak |
+| Setting | `mainnet` | `testnet` | `dev` | Terpasang? |
+|---|---|---|---|---|
+| Require pull request before merging | ya | ya | ya | ✅ |
+| Required approvals | **2** | 1 | 1 | ⏸️ **ditunda = 0** |
+| Dismiss stale approvals on new commits | ya | ya | ya | ✅ |
+| Require review from Code Owners | ya (`.github/CODEOWNERS`) | ya | tidak | ⏸️ ditunda |
+| Require status checks to pass | ya | ya | ya | ✅ (5 check) |
+| Require branches up to date | ya | ya | tidak | ✅ |
+| Require conversation resolution | ya | ya | ya | ✅ |
+| Require signed commits | RECOMMENDED | RECOMMENDED | tidak | ⏸️ belum |
+| Block force pushes (incl. admins) | ya | ya | ya | ✅ (`enforce_admins`) |
+| Block deletions | ya | ya | ya | ✅ |
+| Restrict who can push | ya (via PR saja) | ya | tidak | ✅ (via PR) |
+| Require linear history | tidak | tidak | tidak | ✅ |
+
+- **⏸️ Required approvals = 0 (keputusan user ronde 18c).** Repo hanya punya **satu akun** dan GitHub **melarang self-approve**; mengeset 2/1 akan mengunci SEMUA PR (termasuk PR Dependabot) tanpa bisa di-merge. Ini **penundaan**, bukan penurunan kebijakan: naikkan ke `testnet`=1 / `mainnet`=2 (dan `require_code_owner_reviews`) begitu maintainer kedua ada — sesuai semangat §16 "jangan menurunkan setting untuk mengakali".
+- **Blokir force-push berlaku untuk admin** (`enforce_admins: true`) — spec meminta "termasuk admin". Konsekuensinya perbaikan branch yang butuh force-push tidak bisa; perbaiki lewat PR baru.
+- **Tag protection** dipasang sebagai **ruleset** `protect-release-tags` (bukan API `tags/protection` yang 404): pola `contract-v*`/`web-v*`/`indexer-v*`, aturan `deletion` + `update` diblokir.
+- **Bukti penegakan**: push langsung ke `dev` ditolak GitHub — `GH006: Protected branch update failed for refs/heads/dev. Changes must be made through a pull request. 5 of 5 required status checks are expected.`
 
 > **Catatan (sinkron ronde 15)**: strategi merge final = **squash** untuk `feat/*`→`dev`, dan **merge commit (`--no-ff`)** untuk promosi `dev`→`testnet`→`mainnet` + hotfix/back-merge (lihat [git-workflow.md](../development/git-workflow.md) §9). Karena promosi memakai merge commit, *require linear history* **tidak** diaktifkan di branch mana pun. Nilai lama "ya" di baris ini sudah digantikan.
 
-**Required status checks (nama job persis — samakan dengan workflow):**
+**Required status checks (nama job persis — sudah dipasang & diverifikasi cocok):**
 
 | Check | Workflow | Sumber |
 |---|---|---|
@@ -126,6 +132,7 @@ Selaras [git-workflow.md](../development/git-workflow.md) §8. Status PROPOSED (
 | `Dependency audit (cargo + npm)` | security.yml | security.yml |
 | `Dependency review (PR)` | security.yml | security.yml (hanya PR) |
 
+- Nama di atas **harus sama persis** dengan `name:` job; kelima nama sudah dibandingkan terhadap job yang benar-benar dilaporkan GitHub dan cocok.
 - Perubahan `.github/workflows/**` → review wajib (path filter) + CODEOWNERS.
 - Environment `mainnet` WAJIB punya required reviewers (deploy-mainnet.yml).
 

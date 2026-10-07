@@ -25,8 +25,13 @@ Kebijakan lengkap: [docs/development/versioning-and-release.md](./docs/developme
   (gitleaks + `cargo audit` + `pnpm audit` + dependency review) — semua action di-pin commit SHA,
   `cargo-near` 0.22.0 di-pin sha256.
 - `.github/CODEOWNERS`, `.github/dependabot.yml` (PR dependency → `dev`).
-- Repo remote `github.com/keydeveloping/nearsea`; 3 branch permanen di-push; PR #1 squash-merge ke `dev`
-  (commit `223015b`) — **CI + Security hijau di `dev`** (bukti: run CI 37627825466, Security 37627825490).
+- Repo remote `github.com/keydeveloping/nearsea` (kini **publik**); 3 branch permanen di-push; default branch
+  di-set `mainnet`. PR #1 squash-merge ke `dev` (commit `223015b`) — **CI + Security hijau di `dev`**
+  (bukti: run CI 37627825466, Security 37627825490).
+- **Proteksi branch aktif** (TASK-031) di `dev`/`testnet`/`mainnet`: PR wajib, force-push & delete diblokir
+  **termasuk admin** (`enforce_admins`), 5 required status checks, conversation resolution; `strict` di
+  testnet/mainnet. Tag protection lewat ruleset `protect-release-tags`
+  (`contract-v*`/`web-v*`/`indexer-v*`: delete + update diblokir).
 ### Changed
 - `rust-toolchain.toml`: Rust **1.77.1 → 1.93.1**; `.nvmrc`: Node **20 → 24**; `vitest` **3 → 4**.
 - `deploy-{dev,testnet,mainnet}.yml`: auto-trigger → **manual-only + guard variabel environment**
@@ -43,8 +48,10 @@ Kebijakan lengkap: [docs/development/versioning-and-release.md](./docs/developme
   belum punya dependency graph.
 ### Security
 - Secret scan (gitleaks) + audit dependensi aktif di CI (SEC-CICD-002 → READY-FOR-IMPLEMENTATION); semua
-  action pihak ketiga di-pin SHA (cicd-security.md §5). SEC-CICD-001/003 tetap BLOCKED sampai proteksi
-  branch dikonfigurasi (TASK-031).
+  action pihak ketiga di-pin SHA (cicd-security.md §5). **SEC-CICD-001/003 → READY-FOR-IMPLEMENTATION**:
+  branch protection aktif setelah repo dijadikan publik (sebelumnya terblokir 403 "butuh GitHub Pro" saat
+  private). **Catatan terbuka**: required approval = 0 (ditunda) karena repo masih satu akun — GitHub
+  melarang self-approve; dinaikkan ke testnet=1/mainnet=2 saat maintainer kedua ada.
 - **Kerentanan diperbaiki**: `tinypool` (critical, prototype pollution → RCE) lewat vitest 3 — naik ke
   vitest 4 yang tidak lagi memakainya. **Satu advisory tanpa patch upstream** (`braces <=3.0.3`, high,
   ReDoS, lewat toolchain `eslint-config-next`) dikecualikan **eksplisit** di
