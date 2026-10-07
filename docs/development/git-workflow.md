@@ -111,9 +111,11 @@ Satu strategi per jenis PR — tidak ada kebebasan memilih di GitHub UI:
 - Konsekuensi yang **diterima**: `testnet`/`mainnet` **tidak** memakai *require linear history* (promosi = merge commit). Penyetelan ini menggantikan nilai PROPOSED di [cicd-security.md](../security/cicd-security.md) §8 dan wajib disinkronkan saat scaffold (lihat §11).
 - Larangan: `git push --force` ke branch permanen (diblokir branch protection, §8); `git merge` lokal langsung ke branch permanen tanpa PR.
 
-## 10. CODEOWNERS (rencana)
+## 10. CODEOWNERS (aktif — TASK-001)
 
-File: `.github/CODEOWNERS` (di-root, berlaku ke seluruh repo). Karena kepemilikan saat ini satu maintainer, owner ditulis sebagai **peran** dengan handle placeholder yang diisi saat scaffold (TASK-001).
+File: `.github/CODEOWNERS` (di-root, berlaku ke seluruh repo) — **sudah dibuat**. Karena kepemilikan saat ini satu maintainer, semua pola menunjuk handle nyata `@keydeveloping` (merangkap semua peran); saat tim bertambah, handle diganti per peran seperti di tabel bawah.
+
+Tabel di bawah = **pemetaan peran** yang jadi acuan saat handle diganti (`@nearsea/core`, `@nearsea/contract-owner`, dst.):
 
 | Pola | Owner (peran) | Alasan |
 |---|---|---|
@@ -142,7 +144,8 @@ Nama check **wajib sama persis** dengan `name:` job di workflow — beda satu ka
 | `Dependency audit (cargo + npm)` | [security.yml](../../.github/workflows/security.yml) | `dev`, `testnet`, `mainnet` |
 | `Dependency review (PR)` | [security.yml](../../.github/workflows/security.yml) | hanya PR |
 
-- **Job yang belum ada di skeleton** (ditambahkan saat scaffold TASK-001/029, lalu dimasukkan ke required list): `API — test`, `Fuzz smoke`, dan (pra-rilis) `E2E — golden path`. Nama finalnya dikunci saat workflow dibuat; sampai itu ada, jangan menambahkannya sebagai required (check yang tidak pernah muncul = PR tak bisa merge).
+- **Job yang belum ada** (ditambahkan saat task pemiliknya, lalu dimasukkan ke required list): `API — test` (TASK-018), `Fuzz smoke` (TASK-006+), dan (pra-rilis) `E2E — golden path` (TASK-008/010). Nama finalnya dikunci saat workflow dibuat; sampai itu ada, jangan menambahkannya sebagai required (check yang tidak pernah muncul = PR tak bisa merge).
+- Nama job di atas sudah final untuk job yang ada (TASK-001) — jangan mengubahnya tanpa update tabel ini + cicd-security §8.
 - Aturan: menambah/mengganti nama job → update tabel ini + [cicd-security.md](../security/cicd-security.md) §8 **dalam PR yang sama**.
 - Status check bersifat *strict* di `mainnet`/`testnet` (branch harus up-to-date sebelum merge) — lihat §8.
 
@@ -201,7 +204,7 @@ git show --no-patch --format='%H %s' contract-v0.1.0
 
 | Ekosistem | Direktori | Jadwal | PR dibuka ke |
 |---|---|---|---|
-| `cargo` | `/contract`, `/market`, `/factory` | mingguan (Senin) | `dev` |
+| `cargo` | `/` (workspace: `contract/`, `market/`, `factory/`) | mingguan (Senin) | `dev` |
 | `npm` (pnpm) | `/frontend`, `/indexer` | mingguan (Senin) | `dev` |
 | `github-actions` | `/` | mingguan | `dev` |
 | `docker` | `/` (base image) | bulanan | `dev` |
@@ -216,7 +219,7 @@ Kebijakan PR dependency:
 - Setiap PR dependency tetap tunduk DOCUMENTATION-MAP T10/T16 bila mengubah proses build/test.
 
 ```yaml
-# .github/dependabot.yml — PROPOSED (dibuat saat scaffold, TASK-001/029)
+# .github/dependabot.yml — AKTIF (dibuat TASK-001); jalur cargo di root workspace
 version: 2
 updates:
   - package-ecosystem: cargo
@@ -323,5 +326,5 @@ Langkah onboarding:
 
 - Model 3 branch — **DECIDED (ronde 14)**.
 - Strategi merge (§9) — **DECIDED (ronde 15)**; menyesuaikan *linear history* `testnet`/`mainnet` (sinkronkan cicd-security §8).
-- Proteksi branch, tag protection, CODEOWNERS, Dependabot, commit signing — **PROPOSED** (dikonfigurasi saat scaffold repo, TASK-001/029/031).
-- Named approvers (§16) — **PROPOSED** (handle diisi saat scaffold).
+- Proteksi branch, tag protection, commit signing — **PROPOSED** (dikonfigurasi di GitHub saat repo punya remote, TASK-031/029). **`CODEOWNERS` & `dependabot.yml` sudah dibuat (TASK-001)** — lihat §10/§14.
+- Named approvers (§16) — **PROPOSED** (handle peran diganti saat tim bertambah; saat ini satu maintainer `@keydeveloping` merangkap semua peran).

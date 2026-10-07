@@ -1,14 +1,16 @@
 # =============================================================================
 # Deploy — DEV (branch `dev`, staging)
-# SKELETON. Deploy otomatis ke environment staging/dev.
+# BELUM mengirim apa pun: environment dev (VPS + subdomain) belum di-provision
+# (TASK-028) dan wiring SSH belum dikonfigurasi (TASK-029). Workflow sengaja
+# manual-only sampai itu selesai — tidak ada kredensial yang dibutuhkan.
 # Aturan branch & promosi: docs/development/git-workflow.md
+# Pipeline & environment: docs/development/ci-cd.md §1/§15
 # =============================================================================
 
 name: Deploy (dev)
 
 on:
-  push:
-    branches: [dev]
+  # Manual saja sampai TASK-029 menambahkan trigger `push: branches: [dev]`.
   workflow_dispatch:
 
 permissions:
@@ -27,7 +29,25 @@ jobs:
       name: dev
       url: ${{ vars.DEV_APP_URL }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Cek prasyarat environment (TASK-028/029)
+        run: |
+          missing=""
+          for name in DEV_HOST DEV_SSH_USER DEV_APP_DIR DEV_APP_URL; do
+            eval "value=\${$name}"
+            [ -n "$value" ] || missing="$missing $name"
+          done
+          if [ -n "$missing" ]; then
+            echo "Environment dev belum di-provision — variabel kosong:$missing"
+            echo "Selesaikan TASK-028 (VPS + Docker Compose) dan TASK-029 (wiring deploy) dulu."
+            exit 1
+          fi
+        env:
+          DEV_HOST: ${{ vars.DEV_HOST }}
+          DEV_SSH_USER: ${{ vars.DEV_SSH_USER }}
+          DEV_APP_DIR: ${{ vars.DEV_APP_DIR }}
+          DEV_APP_URL: ${{ vars.DEV_APP_URL }}
 
       - name: Setup SSH deploy key
         run: |

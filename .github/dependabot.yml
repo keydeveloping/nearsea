@@ -1,0 +1,33 @@
+# Dependabot — NearSea (kebijakan: docs/development/git-workflow.md §14)
+# Selalu membuka PR ke `dev`; alur promosi tetap berlaku.
+version: 2
+updates:
+  # Workspace cargo: Cargo.lock ada di root (anggota: contract/, market/, factory/).
+  - package-ecosystem: cargo
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    target-branch: dev
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: npm
+    directory: "/frontend"
+    schedule:
+      interval: weekly
+      day: monday
+    target-branch: dev
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    target-branch: dev
+
+  - package-ecosystem: docker
+    directory: "/"
+    schedule:
+      interval: monthly
+    target-branch: dev

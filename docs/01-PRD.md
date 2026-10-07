@@ -262,28 +262,30 @@ AC lengkap per fitur: [testing/acceptance-criteria.md](./testing/acceptance-crit
 
 ### 15.1 Dependency Version Pins
 
-> **SSOT pin versi = [architecture/tech-stack.md](./architecture/tech-stack.md) § Version pins.** Tabel ini ringkasan; nilai bertanda "final saat scaffold" dikunci di TASK-001 dan dicatat di lockfile/manifest — **jangan mengarang versi final sebelum scaffold**.
+> **SSOT pin versi = [architecture/tech-stack.md](./architecture/tech-stack.md) § Version pins.** Tabel ini **ringkasan** — jangan menyatakan nilai berbeda dari SSOT; nilai yang belum dipakai task-nya ditandai "belum ditambah".
 
-| Dependency | Kategori | Target/rujukan | Pin final |
+| Dependency | Kategori | Target/rujukan | Pin final (TASK-001) |
 |---|---|---|---|
-| Node.js | Runtime FE/API | LTS terbaru saat scaffold | final saat scaffold |
-| Next.js | Framework FE | App Router (versi terbaru saat scaffold) | final saat scaffold |
-| TypeScript | Bahasa FE | strict mode, tanpa `any` tanpa alasan | final saat scaffold |
-| Tailwind CSS | Styling | v3/v4 sesuai scaffold | final saat scaffold |
-| TanStack Query | Server state | v5 | final saat scaffold |
-| Zustand | Client state | v4/v5 sesuai scaffold | final saat scaffold |
-| near-connect | Wallet adapter | versi terbaru (daftar wallet = daftar resmi) | final saat scaffold |
-| near-api-js / @near-js/* | RPC client | versi terbaru saat scaffold | final saat scaffold |
-| Prisma | ORM/migrate | versi terbaru saat scaffold | final saat scaffold |
-| PostgreSQL | DB | 15+ (final saat provision) | final saat scaffold |
-| Rust edition | Bahasa kontrak | 2021 (minimum) | final saat scaffold |
-| Rust toolchain | Toolchain | rustc 1.77.1 (rujukan riset) | final saat scaffold |
-| near-sdk | SDK kontrak | 4.x (SDK ~4.0 rujukan riset) | final saat scaffold |
-| near-sdk-contract-tools | Derive NEP | versi terbaru kompatibel | final saat scaffold |
-| cargo-near | Build kontrak | 0.6.1 (rujukan riset) | final saat scaffold |
-| near-cli-rs | CLI NEAR | 0.17.0 (rujukan riset) | final saat scaffold |
+| Node.js | Runtime FE/API | LTS terbaru saat scaffold | **24 LTS** |
+| Next.js | Framework FE | App Router | **16.4.0** |
+| TypeScript | Bahasa FE | strict mode, tanpa `any` tanpa alasan | **5.9.x** (`^5`) |
+| Tailwind CSS | Styling | v3/v4 sesuai scaffold | **4.3.x** (`^4`) |
+| Vitest + jsdom | Test FE | — | **3.x** + **30.x** |
+| TanStack Query | Server state | v5 | belum ditambah (TASK-007/008) |
+| Zustand | Client state | v4/v5 sesuai scaffold | belum ditambah (TASK-007/008) |
+| near-connect | Wallet adapter | versi terbaru (daftar wallet = daftar resmi) | belum ditambah (TASK-007) |
+| near-api-js / @near-js/* | RPC client | versi terbaru saat scaffold | belum ditambah (TASK-007) |
+| Prisma | ORM/migrate | versi terbaru saat scaffold | belum ditambah (TASK-018) |
+| PostgreSQL | DB | 15+ (final saat provision) | belum di-pin (TASK-028) |
+| Rust edition | Bahasa kontrak | 2021 (minimum) | **2021** |
+| Rust toolchain | Toolchain | rustc 1.77.1 (rujukan riset) | **1.93.1** (naik — lihat tech-stack §Version pins) |
+| near-sdk | SDK kontrak | 4.x (rujukan riset) | **5.29.1** (naik) |
+| near-sdk-contract-tools | Derive NEP | versi terbaru kompatibel | **4.0.0** |
+| cargo-near | Build kontrak | 0.6.1 (rujukan riset) | **0.22.0** (di-pin sha256 di CI) |
+| near-cli-rs | CLI NEAR | 0.17.0 (rujukan riset) | belum di-pin (deploy testnet pertama) |
 
 - **Aturan**: lockfile wajib di-commit (SEC-CICD-001); audit kerentanan di CI; pin runtime/toolchain, lib aplikasi boleh range dengan lockfile (tech-stack.md § Kebijakan dependensi).
+- Dua kenaikan dari rujukan riset (Rust, near-sdk) punya alasan teknis tercatat — **bukan** nilai baru yang dikarang: dependency tree `near-sdk` 5.x butuh Cargo dengan dukungan `edition2024`.
 
 ## 16. Success Metrics
 

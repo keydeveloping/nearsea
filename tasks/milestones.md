@@ -11,6 +11,7 @@
 
 - Semua dokumen inti terisi (hasil tanya-jawab + audit), stack final, repo scaffold.
 - Done when: agent bisa mulai koding tanpa bertanya arah.
+- **Status TASK-001 (2026-10-07):** workspace + manifest + workflow ada dan **semua gate hijau lokal** (fmt/clippy/test kontrak; lint/format/typecheck/test/build FE). Sisa satu butir untuk menutup M0: push ke remote GitHub agar CI + Security benar-benar hijau di `dev` (butuh keputusan user — repo masih lokal).
 
 ## M1 — Vertical slice: mint → list → buy (testnet) ⭐ **milestone pertama yang wajib**
 

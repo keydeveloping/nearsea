@@ -98,7 +98,7 @@ Aturan:
 
 ## Anggaran waktu CI
 
-> Angka = **usulan**; dikunci saat scaffold pipeline ([ci-cd.md](../development/ci-cd.md) TASK-001/029).
+> Angka = usulan; **timeout job kontrak (12 menit) & FE (6 menit) sudah dipasang di `ci.yml` (TASK-001)**.
 > Job yang melewati timeout dibatalkan.
 
 | Job | Isi | Anggaran | Timeout | Jalan |

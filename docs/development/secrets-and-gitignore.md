@@ -231,7 +231,7 @@ pgdata/
 
 ## 9. Konfigurasi gitleaks & allowlist
 
-File konfigurasi: `.gitleaks.toml` (root) — PROPOSED, dibuat saat scaffold (TASK-031).
+File konfigurasi: `.gitleaks.toml` (root) — **ada** (dibuat ronde 16; dipakai gate CI + scan lokal).
 
 ```toml
 # .gitleaks.toml — PROPOSED

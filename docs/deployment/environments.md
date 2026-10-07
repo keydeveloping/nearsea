@@ -20,9 +20,11 @@
 
 | Branch | Environment | Trigger | Approval |
 |---|---|---|---|
-| `dev` | dev/staging | push otomatis | tidak |
-| `testnet` | testnet | push (gate CI) | 1 (environment) |
+| `dev` | dev/staging | push otomatis **(aktif saat TASK-029)** | tidak |
+| `testnet` | testnet | push (gate CI) **(aktif saat TASK-029)** | 1 (environment) |
 | `mainnet` | mainnet | manual (`workflow_dispatch`) | wajib reviewer |
+
+> **Status TASK-001:** workflow `deploy-*.yml` sudah ada tapi **manual-only** (`workflow_dispatch`) dan gagal cepat bila variabel environment belum diisi — environment (VPS + subdomain) baru di-provision di TASK-028 dan wiring SSH di TASK-029 ([ci-cd.md](../development/ci-cd.md) §7).
 
 ## Variabel environment (final — nilai diisi saat deploy/TASK-001)
 
@@ -95,21 +97,20 @@ git clone <repo-url> nearsea && cd nearsea
 cp .env.example .env            # isi nilai lokal; .env TIDAK di-commit
 chmod 600 .env
 
-# 2. Kontrak: build + test (sandbox/localnet).
-cd contract
-cargo near build
-cargo test -- --nocapture
+# 2. Kontrak: build + test (workspace contract/market/factory).
+cargo test --workspace          # unit (host)
+cargo near build non-reproducible-wasm --no-abi --manifest-path contract/Cargo.toml
+#   ulangi untuk market/ dan factory/ → target/near/<crate>/<crate>.wasm
 
-# 3. Database lokal (Docker).
-cd ..
+# 3. Database lokal (Docker) — belum ada sampai TASK-018/028.
 docker compose -f docker-compose.dev.yml up -d db
-docker compose -f docker-compose.dev.yml run --rm web npx prisma migrate deploy
-docker compose -f docker-compose.dev.yml run --rm web npx prisma db seed   # bila ada seed
+docker compose -f docker-compose.dev.yml run --rm web pnpm prisma migrate deploy
+docker compose -f docker-compose.dev.yml run --rm web pnpm prisma db seed   # bila ada seed
 
 # 4. FE/API dev.
 cd frontend
-npm ci
-npm run dev      # http://localhost:3000
+pnpm install --frozen-lockfile
+pnpm dev      # http://localhost:3000
 ```
 
 - NEAR tidak menyediakan jaringan "devnet" terpisah: local memakai **localnet/sandbox** (`near-sandbox`)

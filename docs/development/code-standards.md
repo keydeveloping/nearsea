@@ -140,25 +140,28 @@ Mengikuti konvensi di [testing-strategy.md](../testing/testing-strategy.md) §Ko
 
 ## 9. Konfigurasi lint (aturan yang diaktifkan)
 
-**TypeScript / ESLint** (`.eslintrc` — PROPOSED, TASK-001):
+**TypeScript / ESLint** (`frontend/eslint.config.mjs` — flat config, **AKTIF sejak TASK-001**):
 
-```jsonc
-{
-  "extends": ["next/core-web-vitals", "plugin:@typescript-eslint/strict"],
-  "rules": {
-    "@typescript-eslint/no-explicit-any": "error",
-    "@typescript-eslint/consistent-type-imports": "error",
-    "import/order": ["error", { "newlines-between": "always", "alphabetize": { "order": "asc" } }],
-    "no-restricted-imports": ["error", { "patterns": ["../features/*", "@/features/*/../*"] }],
-    "react/jsx-no-useless-fragment": "error",
-    "no-console": ["warn", { "allow": ["warn", "error"] }]
-  }
-}
+```js
+// frontend/eslint.config.mjs — aturan yang benar-benar aktif
+defineConfig([
+  ...nextVitals,   // eslint-config-next/core-web-vitals
+  ...nextTs,       // eslint-config-next/typescript
+  {
+    rules: {
+      "@typescript-eslint/no-explicit-any": "error",
+      "@typescript-eslint/consistent-type-imports": "error",
+      "no-console": ["warn", { allow: ["warn", "error"] }],
+    },
+  },
+]);
 ```
 
 - `any` = error (bukan warning); pengecualian harus lewat komentar ber-alasan + `eslint-disable-next-line` — dan tetap dibahas di review.
-- `no-restricted-imports` menegakkan larangan impor lintas-fitur (§5).
-- Prettier untuk format (dijalankan lewat ESLint atau terpisah); konflik aturan diformat oleh Prettier.
+- Prettier untuk format (dijalankan terpisah: `pnpm format:check`); konflik aturan diformat oleh Prettier.
+- **Belum diaktifkan** (butuh plugin tambahan; dipasang saat strukturnya ada — TASK-007/008): `import/order`,
+  `no-restricted-imports` (larangan impor lintas-fitur §5), `react/jsx-no-useless-fragment`. Aturan §5 tetap
+  mengikat sebagai konvensi review sampai lint-nya ada.
 
 **Rust**: `cargo fmt` (format) + `cargo clippy --all-targets -- -D warnings` (lint). Dilarang `#[allow(...)]` tanpa komentar alasan; `#[allow(clippy::…)]` yang menonaktifkan lint keamanan (`arithmetic_side_effects` bila diaktifkan) = review wajib.
 

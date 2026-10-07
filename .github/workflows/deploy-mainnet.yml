@@ -1,8 +1,9 @@
 # =============================================================================
 # Deploy — MAINNET (branch `mainnet`) — PALING TERPROTEKSI
-# SKELETON. Manual-trigger SAJA (tidak ada auto-deploy dari push).
+# Manual-trigger SAJA (tidak ada auto-deploy dari push).
 # WAJIB: approval environment (reviewer), gate audit eksternal (TASK-027),
 # verifikasi reproducible build NEP-330, dan ownership kontrak = Sputnik DAO.
+# BELUM mengirim apa pun: environment mainnet belum di-provision (TASK-028/029).
 # Aturan: docs/development/git-workflow.md + docs/development/ci-cd.md
 # =============================================================================
 
@@ -53,7 +54,25 @@ jobs:
       name: mainnet
       url: ${{ vars.MAINNET_APP_URL }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Cek prasyarat environment (TASK-028/029)
+        run: |
+          missing=""
+          for name in MAINNET_HOST MAINNET_SSH_USER MAINNET_APP_DIR MAINNET_APP_URL; do
+            eval "value=\${$name}"
+            [ -n "$value" ] || missing="$missing $name"
+          done
+          if [ -n "$missing" ]; then
+            echo "Environment mainnet belum di-provision — variabel kosong:$missing"
+            echo "Selesaikan TASK-028 (VPS + Docker Compose) dan TASK-029 (wiring deploy) dulu."
+            exit 1
+          fi
+        env:
+          MAINNET_HOST: ${{ vars.MAINNET_HOST }}
+          MAINNET_SSH_USER: ${{ vars.MAINNET_SSH_USER }}
+          MAINNET_APP_DIR: ${{ vars.MAINNET_APP_DIR }}
+          MAINNET_APP_URL: ${{ vars.MAINNET_APP_URL }}
 
       - name: Setup SSH deploy key
         run: |
@@ -69,7 +88,8 @@ jobs:
 
       - name: Verify reproducible build + code hash (SEC-CONTRACT-006)
         run: |
-          echo "TODO(scaffold): verifikasi contract_source_metadata == artifact CI sebelum dianggap sukses"
+          echo "PROPOSED (TASK-032): verifikasi contract_source_metadata == artifact CI sebelum dianggap sukses"
 
       - name: Smoke test
-        run: curl -fsS "${{ vars.MAINNET_APP_URL }}/api/health" || exit 1
+        run: |
+          curl -fsS "${{ vars.MAINNET_APP_URL }}/api/health" || exit 1

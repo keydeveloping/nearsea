@@ -53,26 +53,36 @@
 
 ## Version pins
 
-> **Aturan**: semua pin bertanda **"final saat scaffold"** — versi di bawah adalah target/rujukan riset, dikunci saat TASK-001 (scaffold) dan dicatat di lockfile/manifest. Jangan mengarang versi final sebelum scaffold.
+> **Aturan**: pin dikunci saat TASK-001 (scaffold) dan dicatat di manifest/lockfile
+> (`Cargo.lock`, `frontend/pnpm-lock.yaml`). Sumber kebenaran angka = manifest tersebut;
+> tabel ini ringkasannya. Dua nilai **naik dari rujukan riset** (Rust & `near-sdk`) — lihat catatan di bawah.
 
-| Komponen | Target/rujukan | Pin final | Catatan |
+| Komponen | Rujukan riset | **Pin final (TASK-001)** | Catatan |
 |---|---|---|---|
-| Node.js | LTS terbaru saat scaffold | final saat scaffold | Runtime Next.js |
-| Next.js | App Router (versi terbaru saat scaffold) | final saat scaffold | ADR tidak mematok nomor |
-| TypeScript | strict mode | final saat scaffold | Tanpa `any` tanpa alasan |
-| Tailwind CSS | v3/v4 sesuai scaffold | final saat scaffold | Theme dari sesi branding (TASK-008b) |
-| Rust edition | 2021 (minimum) | final saat scaffold | — |
-| Rust toolchain | rustc 1.77.1 (rujukan riset) | final saat scaffold | RESEARCH.md §10.7 |
-| `near-sdk` | 4.x (SDK ~4.0 rujukan riset) | final saat scaffold | RESEARCH.md §10 |
-| `near-sdk-contract-tools` | versi terbaru kompatibel | final saat scaffold | Derive NEP + Owner/Pause |
-| `cargo-near` | 0.6.1 (rujukan riset) | final saat scaffold | RESEARCH.md §10.7 |
-| `near-cli-rs` | 0.17.0 (rujukan riset) | final saat scaffold | RESEARCH.md §10.7 |
-| `near-api-js` / `@near-js/*` | versi terbaru saat scaffold | final saat scaffold | Read/view call |
-| `near-connect` | versi terbaru | final saat scaffold | Wallet adapter (ronde 5) |
-| Prisma | versi terbaru saat scaffold | final saat scaffold | Migrate + client |
-| PostgreSQL | 15+ (rujukan; final saat provision) | final saat scaffold | Lihat ekstensi di bawah |
-| TanStack Query | v5 | final saat scaffold | Server state |
-| Zustand | v4/v5 sesuai scaffold | final saat scaffold | Client state |
+| Node.js | LTS terbaru saat scaffold | **24 (LTS)** | `.nvmrc`; Node 20 sudah EOL (April 2026) dan `jsdom` 30 (test FE) mensyaratkan ≥22.22.2 |
+| Next.js | App Router (versi terbaru saat scaffold) | **16.4.0** | App Router + Turbopack; `cacheComponents` aktif |
+| React | — | **19.3.0** | Peer Next.js 16 |
+| TypeScript | strict mode | **5.9.x** (`^5`) | Tanpa `any` tanpa alasan |
+| Tailwind CSS | v3/v4 sesuai scaffold | **4.3.x** (`^4`) | Theme dari sesi branding (TASK-008b) |
+| ESLint | — | **9.x** | `eslint-config-next` 16 + aturan proyek (code-standards §9) |
+| Vitest + jsdom | — | **3.x** + **30.x** | Unit/komponen FE |
+| Rust edition | 2021 (minimum) | **2021** | — |
+| Rust toolchain | rustc 1.77.1 (rujukan riset) | **1.93.1** | `rust-toolchain.toml`; **naik** — dependency tree `near-sdk` 5.x butuh Cargo dengan dukungan `edition2024` (stabil sejak 1.85) |
+| `near-sdk` | 4.x (rujukan riset) | **5.29.1** (manifest `5.29`) | **naik** — sintaks `#[near(contract_state)]` di [docs/contracts/](../contracts/nft-collection.md) §1 adalah near-sdk 5.x |
+| `near-sdk-contract-tools` | versi terbaru kompatibel | **4.0.0** | Derive NEP + Owner/Pause; mensyaratkan `near-sdk ^5.18`. **Nama crate = `near_sdk_contract_tools`** (bukan `near_contract_tools`) |
+| `cargo-near` | 0.6.1 (rujukan riset) | **0.22.0** | Di-pin + verifikasi sha256 di CI (`.github/workflows/ci.yml`) |
+| `near-cli-rs` | 0.17.0 (rujukan riset) | belum di-pin | Hanya tooling interaktif deploy; dipin saat deploy testnet pertama |
+| `near-api-js` / `@near-js/*` | versi terbaru saat scaffold | belum ditambah | Read/view call — masuk bersama TASK-007 |
+| `near-connect` | versi terbaru | belum ditambah | Wallet adapter (ronde 5) — masuk bersama TASK-007 |
+| Prisma | versi terbaru saat scaffold | belum ditambah | Migrate + client — masuk bersama API/report (TASK-018) |
+| PostgreSQL | 15+ (rujukan; final saat provision) | belum di-pin | Lihat ekstensi di bawah |
+| TanStack Query | v5 | belum ditambah | Server state — masuk bersama TASK-007/008 |
+| Zustand | v4/v5 sesuai scaffold | belum ditambah | Client state — masuk bersama TASK-007/008 |
+| gitleaks | terbaru | **v2** (action ter-pin SHA) | SEC-CICD-002; gate CI + `.gitleaks.toml` |
+
+- **Kenapa dua versi naik:** `rust-toolchain.toml` dan `near-sdk` saling terikat — `near-sdk` 5.x (satu-satunya jalur untuk `near-sdk-contract-tools` 4.x) mensyaratkan toolchain ≥1.85. Alternatif "tetap 1.77.1 + near-sdk 4.1 + contract-tools 2.1" ditolak karena dokumen kontrak sudah dikunci ke sintaks 5.x (dan 4.x tidak lagi menerima perbaikan).
+- **Belum ditambah** = sengaja; paket masuk saat task pemiliknya (aturan "Simplicity First": tidak memasang dependensi sebelum dipakai).
+
 
 ## Rasional & alternatif yang ditolak
 

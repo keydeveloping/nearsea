@@ -71,6 +71,10 @@ target/
 *.wasm
 !**/res/*.wasm
 Cargo.lock.bak
+# Code hash wasm (dibuat CI/lokal) — artefak build, bukan sumber.
+artifacts/
+# Cache build cargo-near
+.cargo-near/
 
 # -----------------------------------------------------------------------------
 # NODE / FRONTEND
@@ -89,6 +93,8 @@ out/
 coverage/
 *.tsbuildinfo
 .vite/
+# Digenerate Next.js (jangan di-commit; dibuat ulang saat `next dev`/`next build`).
+next-env.d.ts
 
 # -----------------------------------------------------------------------------
 # PYTHON (tooling/script bila ada)

@@ -1,6 +1,8 @@
 # Pin versi toolchain Rust — SSOT (keputusan TECH): riset versi = RESEARCH.md §10.7; final saat TASK-001.
+# Naik dari rujukan riset 1.77.1: dependency tree near-sdk 5.x menuntut Cargo dengan dukungan
+# edition2024 (stabil sejak 1.85) — lihat docs/architecture/tech-stack.md §Version pins.
 [toolchain]
-channel = "1.77.1"
+channel = "1.93.1"
 components = ["rustfmt", "clippy"]
 targets = ["wasm32-unknown-unknown"]
 profile = "minimal"
