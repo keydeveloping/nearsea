@@ -9,9 +9,11 @@
 
 | Branch | Environment | Trigger deploy | Approval | Artefak |
 |---|---|---|---|---|
-| `dev` | staging (RPC testnet, kontrak/subdomain dev terpisah) | otomatis saat push | tidak | web + kontrak dev |
-| `testnet` | testnet publik | otomatis saat push (gate CI) | 1 (environment) | web + kontrak testnet |
+| `dev` | staging (RPC testnet, kontrak/subdomain dev terpisah) | otomatis saat push ⚠️ **belum aktif — manual sampai TASK-029** | tidak | web + kontrak dev |
+| `testnet` | testnet publik | otomatis saat push (gate CI) ⚠️ **belum aktif — manual sampai TASK-029** | 1 (environment) | web + kontrak testnet |
 | `mainnet` | produksi | **manual saja** (`workflow_dispatch`) | wajib (reviewer) | web + kontrak mainnet |
+
+> **Status TASK-001:** trigger `push` untuk `dev`/`testnet` sengaja belum dipasang — environment belum di-provision (TASK-028) dan wiring SSH belum ada (TASK-029). Ketiga workflow deploy kini `workflow_dispatch` saja + guard variabel environment (§7).
 
 ## 2. Tahapan pipeline
 
@@ -76,7 +78,7 @@ contracts:
     - uses: actions/checkout@<sha> # v4
     - uses: dtolnay/rust-toolchain@<sha> # stable
       with:
-        toolchain: 1.93.1
+        # Versi toolchain TIDAK ditulis di sini — dibaca dari rust-toolchain.toml (SSOT pin).
         components: rustfmt, clippy
         targets: wasm32-unknown-unknown
     - uses: actions/cache@<sha> # v4
@@ -209,7 +211,7 @@ near view "$MARKET_CONTRACT_ID" contract_source_metadata   # versi + hash
 near view "$MARKET_CONTRACT_ID" get_version                # bila method tersedia
 
 # 5. Verifikasi hash artifact == on-chain (kontrak) — §14
-sha256sum target/near/*.wasm | diff - artifacts/code-hash.txt
+sha256sum target/near/*/*.wasm | diff - artifacts/code-hash.txt
 ```
 
 - Gagal pada langkah mana pun → deploy **gagal** → jalankan penanganan kegagalan (§12), jangan tandai sukses.

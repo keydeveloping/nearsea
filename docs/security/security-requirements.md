@@ -67,9 +67,9 @@
 | SEC-DB-002 | Tidak ada secret di DB; minim PII | leak | database-security §1 | review | P0 | MVP | backend | M1 | DECIDED |
 | SEC-DB-003 | `admin_audit` immutable | tampering | admin-security §5 | TC-025 | P1 | MVP | backend | M1 | PROPOSED |
 | SEC-DB-004 | Restore drill sukses terdokumentasi | backup palsu | disaster-recovery | drill | P0 | MVP | infra | M4 | BLOCKED |
-| SEC-CICD-001 | Branch protection + audit gates + lockfile | supply chain | cicd-security §2 | CI config review | P0 | MVP | infra | M1 | PROPOSED |
-| SEC-CICD-002 | Secret scanning (gitleaks) di CI + `.gitignore` ketat; tidak ada kredensial usable di repo | secret leak | secrets-and-gitignore | gitleaks + review | P0 | MVP | infra | M1 | PROPOSED |
-| SEC-CICD-003 | Proteksi 3 branch (`dev`/`testnet`/`mainnet`); merge/deploy ke `testnet`/`mainnet` wajib approval + tanya user | rilis tak sah | git-workflow §3/§8 | review konfigurasi branch | P0 | MVP | infra | M1 | PROPOSED |
+| SEC-CICD-001 | Branch protection + audit gates + lockfile | supply chain | cicd-security §2 | CI config review | P0 | MVP | infra | M1 | BLOCKED |
+| SEC-CICD-002 | Secret scanning (gitleaks) di CI + `.gitignore` ketat; tidak ada kredensial usable di repo | secret leak | secrets-and-gitignore | gitleaks + review | P0 | MVP | infra | M1 | READY-FOR-IMPLEMENTATION |
+| SEC-CICD-003 | Proteksi 3 branch (`dev`/`testnet`/`mainnet`); merge/deploy ke `testnet`/`mainnet` wajib approval + tanya user | rilis tak sah | git-workflow §3/§8 | review konfigurasi branch | P0 | MVP | infra | M1 | BLOCKED |
 | SEC-IR-001 | Playbook IR + drill pause & restore sebelum mainnet | unprepared incident | incident-response §4 | drill evidence | P0 | mainnet gate | security | M4 | PROPOSED |
 | SEC-IR-002 | Kontak darurat + akses kedua (VPS/DM) | unprepared incident | incident-response §4 | dokumentasi | P1 | MVP | security | M1 | PROPOSED |
 | SEC-IR-003 | Kanal komunikasi status resmi siap | unprepared incident | incident-response §4 | dokumentasi | P1 | MVP | security | M1 | PROPOSED |
@@ -85,6 +85,7 @@
 - **Rujukan silang**: SEC-CONTRACT-012 = register utama untuk Sputnik DAO + guardian; SEC-KEY-002 merujuk ke sana (bukan duplikat). SEC-FE-002 merujuk SEC-ORDER-003.
 - **Rujukan dari dokumen kontrol**: requirement yang belum dikutip di dokumen kontrol lain (`SEC-CONTRACT-009/010/012`, `SEC-FE-001`, `SEC-ADMIN-001/002`, `SEC-INFRA-001/002`, `SEC-DB-002`, `SEC-KEY-001`) dikutip di dokumen pemiliknya pada kolom **Ref** — jangan menghapus ID ini karena tidak muncul di dokumen lain.
 - **Naik status sebelum task**: requirement P0 yang masih `PROPOSED` (mis. SEC-ORDER-003) wajib naik ke `DECIDED`/`READY-FOR-IMPLEMENTATION` sebelum task terkait dimulai. (Ronde 16: SEC-CONTRACT-002/009/010 naik ke DECIDED — desain lengkap di contract-architecture + ADR-002/003/008; DECIDED berarti desain terkunci, bukan sudah diimplement.)
+- **Ronde 18 (TASK-001 scaffold) — status SEC-CICD**: `SEC-CICD-002` → **READY-FOR-IMPLEMENTATION** (gitleaks + `.gitignore` ketat + allowlist `.gitleaks.toml` + job CI sudah ada; verifikasi = run CI pertama). `SEC-CICD-001` & `SEC-CICD-003` → **BLOCKED**: bagian audit-gate + lockfile sudah terpenuhi, tetapi **branch protection butuh remote GitHub** yang belum ada (prasyarat = buat remote + TASK-031). Tidak ada status `IMPLEMENTED` — enum tetap 5 nilai.
 
 ## Prosedur: menambah SEC requirement baru (ronde 16)
 

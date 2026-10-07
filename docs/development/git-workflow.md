@@ -223,7 +223,7 @@ Kebijakan PR dependency:
 version: 2
 updates:
   - package-ecosystem: cargo
-    directory: "/contract"
+    directory: "/"            # workspace root (Cargo.lock ada di sini)
     schedule: { interval: weekly, day: monday }
     target-branch: dev
     open-pull-requests-limit: 5

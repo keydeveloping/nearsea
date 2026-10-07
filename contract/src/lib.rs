@@ -33,6 +33,7 @@ mod tests {
         "owner.testnet".parse().unwrap()
     }
 
+    // SEC-CONTRACT-002 · scaffold (TC-001 penuh menyusul di TASK-002).
     #[test]
     fn test_new_sets_owner() {
         testing_env!(VMContextBuilder::new()

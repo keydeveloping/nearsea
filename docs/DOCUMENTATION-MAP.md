@@ -99,6 +99,7 @@ Keputusan keamanan (ADR-010..015) mengikat architecture & protocol design di cha
 - [CHANGELOG.md](../CHANGELOG.md) — catatan perubahan (Keep a Changelog, per-artefak)
 - [LICENSE](../LICENSE) — lisensi MIT (diputuskan ronde 17; ADR-016)
 - [rust-toolchain.toml](../rust-toolchain.toml) — pin toolchain Rust (SSOT versi Rust; 1.93.1)
+- [rustfmt.toml](../rustfmt.toml) — konfigurasi `cargo fmt` (edition; opsi nightly sengaja tidak dipasang)
 - [.nvmrc](../.nvmrc) — pin versi Node (SSOT versi Node; 24 LTS)
 - [Cargo.toml](../Cargo.toml) — workspace kontrak (anggota `contract/`/`market/`/`factory/`) + profil rilis
 - [Cargo.lock](../Cargo.lock) — lockfile workspace (WAJIB di-commit; SEC-CICD-001)

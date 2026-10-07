@@ -65,10 +65,11 @@
 | TypeScript | strict mode | **5.9.x** (`^5`) | Tanpa `any` tanpa alasan |
 | Tailwind CSS | v3/v4 sesuai scaffold | **4.3.x** (`^4`) | Theme dari sesi branding (TASK-008b) |
 | ESLint | — | **9.x** | `eslint-config-next` 16 + aturan proyek (code-standards §9) |
+| pnpm | — | **10.29.3** | `packageManager` di `frontend/package.json` (SSOT versi pnpm); CI membacanya dari manifest |
 | Vitest + jsdom | — | **3.x** + **30.x** | Unit/komponen FE |
 | Rust edition | 2021 (minimum) | **2021** | — |
 | Rust toolchain | rustc 1.77.1 (rujukan riset) | **1.93.1** | `rust-toolchain.toml`; **naik** — dependency tree `near-sdk` 5.x butuh Cargo dengan dukungan `edition2024` (stabil sejak 1.85) |
-| `near-sdk` | 4.x (rujukan riset) | **5.29.1** (manifest `5.29`) | **naik** — sintaks `#[near(contract_state)]` di [docs/contracts/](../contracts/nft-collection.md) §1 adalah near-sdk 5.x |
+| `near-sdk` | 4.x (rujukan riset) | **`5.18`** (ter-lock 5.29.1) | **naik** — sintaks `#[near(contract_state)]` di [docs/contracts/](../contracts/nft-collection.md) §1 adalah near-sdk 5.x |
 | `near-sdk-contract-tools` | versi terbaru kompatibel | **4.0.0** | Derive NEP + Owner/Pause; mensyaratkan `near-sdk ^5.18`. **Nama crate = `near_sdk_contract_tools`** (bukan `near_contract_tools`) |
 | `cargo-near` | 0.6.1 (rujukan riset) | **0.22.0** | Di-pin + verifikasi sha256 di CI (`.github/workflows/ci.yml`) |
 | `near-cli-rs` | 0.17.0 (rujukan riset) | belum di-pin | Hanya tooling interaktif deploy; dipin saat deploy testnet pertama |

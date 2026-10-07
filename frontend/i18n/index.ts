@@ -3,19 +3,27 @@ import common from "./en/common.json";
 const messages = { common } as const;
 
 type Namespace = keyof typeof messages;
-type MessageKeyOf<N extends Namespace> = `${N}.${keyof (typeof messages)[N] & string}`;
 
-export type MessageKey = { [N in Namespace]: MessageKeyOf<N> }[Namespace];
+export type MessageKey = {
+  [N in Namespace]: `${N & string}.${keyof (typeof messages)[N] & string}`;
+}[Namespace];
+
+function lookup(key: MessageKey): string | undefined {
+  const separator = key.indexOf(".");
+  const namespace = key.slice(0, separator);
+  const name = key.slice(separator + 1);
+  // Satu-satunya cast: TypeScript tidak bisa memecah template literal `a.b`
+  // menjadi dua literal terpisah. `MessageKey` tetap yang menjaga pemanggil.
+  const namespaceMessages: Record<string, string> = messages[namespace as Namespace];
+  return namespaceMessages[name];
+}
 
 /**
  * Copy UI selalu lewat modul ini (tidak ada string hardcode di komponen).
  * Kunci bertipe: kunci yang salah = error build (code-standards.md §10).
  */
 export function t(key: MessageKey): string {
-  const separator = key.indexOf(".");
-  const namespace = key.slice(0, separator) as Namespace;
-  const name = key.slice(separator + 1);
-  const value: string | undefined = messages[namespace][name as never];
+  const value = lookup(key);
 
   if (value === undefined) {
     throw new Error(`Missing i18n message: ${key}`);

@@ -43,6 +43,7 @@ mod tests {
         "owner.testnet".parse().unwrap()
     }
 
+    // SEC-CONTRACT-002 · scaffold (TC-001 penuh menyusul di TASK-004).
     #[test]
     fn test_new_sets_owner() {
         testing_env!(VMContextBuilder::new()
@@ -54,6 +55,7 @@ mod tests {
         assert_eq!(contract.own_get_owner(), Some(owner()));
     }
 
+    // SEC-CONTRACT-007 · scaffold (TC-012 penuh menyusul di TASK-004).
     #[test]
     fn test_pause_toggles_state() {
         testing_env!(VMContextBuilder::new()

@@ -71,15 +71,16 @@ komentar itu tidak perlu. `TODO` hanya boleh ada bila menunjuk task di
 - Dilarang import lintas-fitur langsung (`features/a` → `features/b`) — lewat `lib/` (frontend-architecture §1).
 - Import tipe selalu `import type` (atau `import { type X }`) agar tidak ikut bundle runtime.
 
-**Rust** — dikelola `rustfmt` dengan konfigurasi (PROPOSED, `rustfmt.toml`):
+**Rust** — dikelola `rustfmt` dengan konfigurasi (`rustfmt.toml`, **ada sejak TASK-001**):
 
 ```toml
-# rustfmt.toml (PROPOSED — diaktifkan saat scaffold)
+# rustfmt.toml — AKTIF
 edition = "2021"
-group_imports = "StdExternalCrate"
-imports_granularity = "Module"
 ```
 
+- `group_imports` / `imports_granularity` **belum dipasang**: keduanya masih *nightly-only*, sedangkan
+  `rust-toolchain.toml` memakai toolchain stable (1.93.1) — memaksanya akan membuat `cargo fmt` gagal di CI.
+  Aturan urutan grup di bawah tetap mengikat sebagai **konvensi review**.
 - Urutan: `std` → crate eksternal → `crate::`/`super::`/`self::`.
 - Hindari `use super::*;` (wildcard) di kode produksi; eksplisit lebih mudah diaudit.
 - `use` yang tidak terpakai = error CI (`cargo clippy -D warnings`).
