@@ -25,6 +25,13 @@
 - Done when: **dua akun testnet** bisa list→buy end-to-end via UI; seller + royalti terbayar dengan
   fee 2% terlihat di breakdown; sandbox test hijau; NFT tetap di wallet seller selama listing
   (dibuktikan, bukan diklaim).
+- **Status TASK-002 (2026-10-07, ronde 19): ✅ `done` (kode).** Kontrak koleksi `contract/src/lib.rs`
+  mengimplementasikan NEP-171/177/178/181 + NEP-145 + event NEP-297 + `nft_mint` launchpad-aware +
+  `set_phases` (satu fase publik, dan allowlist penuh sekalian). Gate lokal hijau: `fmt --check`,
+  `clippy -D warnings` (0 warning), `cargo test --workspace` (**34 test**), build wasm 265 KB dengan ABI
+  lengkap. **Belum di-deploy** ke testnet — deploy wajib tanya user dulu ([git-workflow.md](../docs/development/git-workflow.md) §3);
+  karena itu item "kontrak ter-deploy" pada tiket slice `04` ditandai ⚠️ sebagian. Sisa slice M1:
+  TASK-003 → 004 → 005 → 006, dan jalur FE 007 → 008.
 
 ## M1+ — MVP completion (lanjutan eksplisit, bukan dibuang)
 

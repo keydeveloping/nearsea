@@ -59,8 +59,19 @@ Kebijakan lengkap: [docs/development/versioning-and-release.md](./docs/developme
 
 ### Contract (kontrak NFT + market + factory)
 ### Added
-- Placeholder crate (init + owner/pause) — **belum ada perilaku kontrak**; surface NEP + listing/buy
-  diimplementasikan di TASK-002..005.
+- **NFT collection core (TASK-002, 2026-10-07)** — `contract/src/lib.rs` kini punya perilaku nyata:
+  NEP-171 core (`nft_transfer`/`nft_transfer_call`/`nft_resolve_transfer`/`nft_token`), NEP-177 metadata
+  (kontrak + per-token), NEP-178 approval (`nft_approve`/`nft_revoke`/`nft_revoke_all`/`nft_is_approved`),
+  NEP-181 enumerasi, NEP-145 storage — semuanya lewat derive `NonFungibleToken` (`near-sdk-contract-tools` 4.0).
+  Ekstensi NearSea: `nft_mint` **launchpad-aware** (deposit exact-match `harga fase × quantity`, alokasi
+  fase, `max_per_wallet`, allowlist opsional, storage dibayar minter), `set_phases` (replace-all, validasi
+  INV-029), `allowlist_add`, `get_launchpad`, `allowlist_contains`, `royalty_config`, `market_id`.
+  Event NEP-297 untuk mint/transfer + event NearSea `launchpad_mint` (`data` berbentuk **array** sesuai
+  [webhooks.md](./docs/api/webhooks.md); helper `SingleEvent<T>` dipakai karena derive memancarkan objek).
+  Init `new` menolak `royalty_bps` di luar `1..=1000` (`INVALID_ROYALTY`) dan memakai `PanicOnDefault`
+  (SEC-CONTRACT-002). Batas window fase `[starts_at, ends_at)` ditetapkan DECIDED. **Belum termasuk**:
+  `nft_transfer_payout` NEP-199 (TASK-003), fase bebas penuh + Pausable (TASK-020).
+- Placeholder crate (init + owner/pause) — surface market/factory menyusul di TASK-004/005/012.
 
 ### Web (frontend Next.js)
 ### Added

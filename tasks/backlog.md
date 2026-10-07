@@ -31,7 +31,7 @@ Milestone: M0 | M1 | M2 | M3 | M4
 | ID | Judul | Area | Priority | Depends | Spec | Status | Estimate | Done-when | Milestone |
 |---|---|---|---|---|---|---|---|---|---|
 | TASK-001 | Scaffold workspace repo (contract/market/factory/frontend) + CI gates + SEC-* P0 | infra | P0 | — | implementation-plan | done | 3 | CI + Security hijau di `dev`; semua manifest & workflow ada | M0 |
-| TASK-002 | Kontrak NFT: NEP-171/177/178/181/297 + mint + events (near-sdk-contract-tools) + **`set_phases` minimal (satu fase publik)** — wajib agar `nft_mint` bisa dipanggil (mint = launchpad-aware, INV-017) | contract | P0 | 001 | features/marketplace + contracts/nft-collection.md | todo | 4 | `cargo test` hijau; mint + transfer + events lolos TC-001 | M1 |
+| TASK-002 | Kontrak NFT: NEP-171/177/178/181/297 + mint + events (near-sdk-contract-tools) + **`set_phases` minimal (satu fase publik)** — wajib agar `nft_mint` bisa dipanggil (mint = launchpad-aware, INV-017) | contract | P0 | 001 | features/marketplace + contracts/nft-collection.md | done | 4 | `cargo test` hijau; mint + transfer + events lolos TC-001 | M1 |
 | TASK-003 | Kontrak NFT: royalty NEP-199 (cap 10%) | contract | P0 | 002 | features/marketplace | todo | 1 | Payout royalti ≤10% teruji (INV-003/027) | M1 |
 | TASK-004 | Kontrak market: storage NEP-145 + listing 2-tx + dual verification | contract | P0 | 002 | features/marketplace | todo | 4 | List/cancel + storage deposit lolos (INV-020, TC-002) | M1 |
 | TASK-005 | Kontrak market: buy + nft_transfer_payout + resolve/refund (+ private listing & bundle — dgn TASK-010) | contract | P0 | 004 | features/marketplace.md + payments.md | todo | 5 | Buy sukses + refund + race 20 pembeli lolos (INV-001/016, TC-003/016) | M1 |
@@ -68,7 +68,18 @@ Milestone: M0 | M1 | M2 | M3 | M4
 | TASK-035 | Audit dependensi: tinjau ulang advisory tanpa patch yang di-*ignore* (`--ignore-unfixable`) | infra | P2 | 001 | development/ci-cd.md §3 | todo | 0.5 | Advisory yang di-ignore punya keputusan tercatat: diperbaiki, diganti, atau diterima + alasan | M1+ |
 
 > **TASK-031 `done` (ronde 18c):** repo dijadikan **publik** oleh user → branch protection tersedia (sebelumnya 403 "butuh GitHub Pro" saat private). Proteksi **aktif** di `dev`/`testnet`/`mainnet`: PR wajib, force-push & delete diblokir **termasuk admin** (`enforce_admins`), 5 required status checks, conversation resolution; `strict` (branch up-to-date) di testnet/mainnet. Tag protection via ruleset `protect-release-tags` (`contract-v*`/`web-v*`/`indexer-v*`: delete + update diblokir). **Bukti**: push langsung ke `dev` ditolak GitHub — `GH006 Protected branch update failed … Changes must be made through a pull request. 5 of 5 required status checks are expected.`
-> **Required approval = 0 (ditunda, keputusan user ronde 18c):** repo hanya punya satu akun dan GitHub melarang self-approve, jadi approval 2/1 akan mengunci semua PR. Naikkan ke `testnet`=1 / `mainnet`=2 saat ada maintainer kedua ([git-workflow.md](../../docs/development/git-workflow.md) §16). `require_code_owner_reviews` juga ditunda karena alasan yang sama.
+> **Required approval = 0 (ditunda, keputusan user ronde 18c):** repo hanya punya satu akun dan GitHub melarang self-approve, jadi approval 2/1 akan mengunci semua PR. Naikkan ke `testnet`=1 / `mainnet`=2 saat ada maintainer kedua ([git-workflow.md](../docs/development/git-workflow.md) §16). `require_code_owner_reviews` juga ditunda karena alasan yang sama.
+
+> **TASK-002 `done` (ronde 19):** kontrak koleksi di `contract/src/lib.rs` — NEP-171/177/178/181 via
+> derive `NonFungibleToken` (`near-sdk-contract-tools` 4.0), NEP-145 storage, event NEP-297, plus ekstensi
+> NearSea `nft_mint` (launchpad-aware) + `set_phases`/`allowlist_add`/`get_launchpad`/`allowlist_contains`/
+> `royalty_config`. **Gate hijau**: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`
+> (0 warning), `cargo test --workspace` (**34 test**, 31 di antaranya kontrak), dan
+> `cargo near build non-reproducible-wasm` (265 KB) — ABI wasm diverifikasi memuat seluruh method NEP +
+> ekstensi. TC-001 dibuktikan di level **unit** (mint → transfer → events `nft_mint`/`nft_transfer`/
+> `launchpad_mint`); versi **sandbox** (`near-workspaces`) milik TASK-006 (slice ticket `08`), bukan tiket ini.
+> **Belum termasuk** (sengaja): `nft_transfer_payout` NEP-199 → TASK-003; fase bebas penuh + allowlist
+> penuh + Pausable → TASK-020. **Belum di-deploy** ke testnet (butuh persetujuan user, `git-workflow.md` §3).
 
 > **TASK-035 (dibuat ronde 18, TASK-001):** `braces <=3.0.3` (high, ReDoS) masuk lewat
 > `eslint-config-next → @next/eslint-plugin-next → fast-glob → micromatch`. Versi terbaru `braces` = 3.0.3

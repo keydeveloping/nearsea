@@ -123,8 +123,9 @@ impl CollectionContract {
 
 - Gagal di step mana pun = revert seluruh tx → deposit kembali otomatis via rollback (INV-018; tidak ada refund manual — [features/launchpad.md](../features/launchpad.md) §Flow Mint).
 - Semantik `max_per_wallet = 0`: **PROPOSED** — ditolak saat konfigurasi fase (`set_phases`), sehingga 0 tidak pernah muncul di state. Alternatif (0 = tanpa batas) ditolak karena ambigu dan justru membuka mint tak terbatas ([features/launchpad.md](../features/launchpad.md) §Edge mendelegasikan semantik final ke dokumen ini).
-- Batas window fase (inklusif/eksklusif): **PROPOSED** `[starts_at, ends_at)` — `starts_at` inklusif, `ends_at` eksklusif; fase berdampingan (`next.starts_at == cur.ends_at`) valid, tidak dianggap overlap. Final saat implementasi (⏳ open-by-design di [features/launchpad.md](../features/launchpad.md) §Edge).
+- Batas window fase (inklusif/eksklusif): **DECIDED (ronde 19, saat implementasi TASK-002)** `[starts_at, ends_at)` — `starts_at` inklusif, `ends_at` eksklusif; fase berdampingan (`next.starts_at == cur.ends_at`) valid, tidak dianggap overlap. Diuji di dua sisi batas (`test_mint_rejected_before_window_opens`, `test_mint_rejected_at_window_end_exclusive`).
 - Waktu = **u64 nanodetik** (selaras `env::block_timestamp()`); FE konversi ke ISO-8601 hanya untuk tampilan.
+- `phase_index: None` dengan **lebih dari satu fase aktif** (mustahil bila `set_phases` dijaga) → panic `CONFLICT_PHASE_OVERLAP`, bukan memilih diam-diam (INV-029).
 
 ### Event yang di-emit `nft_mint`
 
@@ -132,6 +133,9 @@ impl CollectionContract {
 |---|---|---|---|
 | `nft_mint` | `nep171` 1.0.0 | tiap mint sukses | `owner_id`, `token_ids[]` |
 | `launchpad_mint` | `x-nearsea-market` 1.0.0 | tiap mint sukses | `collection`, `phase_index`, `account_id`, `token_ids[]`, `price_yocto` |
+
+- **Bentuk `data` = array** (`[{…}]`) di semua event custom `x-nearsea-market`, sesuai [webhooks.md](../api/webhooks.md). Catatan implementasi (ronde 19): derive `near_sdk_contract_tools::event` memancarkan `data` sebagai **objek**, jadi kontrak memakai helper envelope `SingleEvent<T>` (di `contract/src/lib.rs`) yang membungkus payload ke array satu entri. Helper ini dipakai ulang kontrak market/factory agar bentuk event seragam.
+- Event `nft_mint`/`nft_transfer` NEP-171 datang dari derive `NonFungibleToken`; envelope-nya `EVENT_JSON:` satu baris (NEP-297).
 
 ### `launchpad_phase_start` (lazy, tanpa cron)
 
@@ -326,3 +330,20 @@ pub enum StorageKey {
 - Init args, `creator_id` contract-level, derivasi royalti ronde 16, layout fase/allowlist, prefix storage — **di-pertanggungjawabkan dokumen ini** (reference implementasi).
 - Nilai bertanda PROPOSED/⏳ = final saat implementasi + diukur sandbox; tidak boleh dianggap keputusan bisnis.
 - Invariant relevan: INV-017, INV-018, INV-019, INV-021, INV-027, INV-029 ([smart-contract-invariants.md](../security/smart-contract-invariants.md)); requirement SEC-CONTRACT-002/008/009/010/011.
+
+### Status implementasi (ronde 19 — TASK-002)
+
+`contract/src/lib.rs` sudah mengimplementasikan **§1–§3, §5–§7**: init, surface NEP-171/177/178/181 via
+derive `NonFungibleToken`, NEP-145 storage, event NEP-297, `nft_mint` launchpad-aware, `set_phases`,
+`allowlist_add`, `get_launchpad`, `allowlist_contains`, `royalty_config`, `market_id`. Bukti: 31 unit test
+di crate (fmt + clippy `-D warnings` bersih, wasm ter-build).
+
+Belum diimplementasikan (sengaja, bukan kelalaian):
+
+| Bagian | Milik | Catatan |
+|---|---|---|
+| `nft_transfer_payout` (NEP-199) + derivasi payout §4 | **TASK-003** | Dokumen §4 sudah final; kode menyusul. |
+| `mint_price_of` (basis royalti bundle) | **TASK-010** | View PROPOSED; dipakai pre-validasi bundle, bukan slice M1. |
+| Fase bebas penuh + `Pausable` + `MAX_FEE_BPS` | **TASK-020** | Tiket ini cukup satu fase publik untuk slice. |
+| Kalibrasi konstanta §6 (`MAX_MINT_PER_CALL`, `MAX_ALLOWLIST_BATCH`, `MAX_PHASES`, `GAS_FOR_MINT`) | **TASK-006** | Nilai saat ini = usulan dokumen; diukur di sandbox. |
+| Deploy ke testnet | butuh **persetujuan user** | [git-workflow.md](../development/git-workflow.md) §3. |
