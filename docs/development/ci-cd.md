@@ -34,11 +34,21 @@
 |---|---|---|
 | Format + clippy tanpa warning | kontrak | blok merge |
 | Unit + sandbox test hijau | kontrak | blok merge |
-| Lint + typecheck + build | FE | blok merge |
-| `cargo audit` / `npm audit` (critical/high) | semua | blok merge |
+| Lint + format + typecheck + test + build | FE | blok merge |
+| `cargo audit` / `pnpm audit` (critical/high) | semua | blok merge |
 | Secret scanning (gitleaks) | semua | blok merge |
 | Reproducible build + verifikasi hash | kontrak (testnet/mainnet) | blok deploy |
 | Audit eksternal lulus | kontrak (mainnet, TASK-027) | blok deploy |
+
+- **Advisory tanpa patch** dicatat **eksplisit** di `frontend/pnpm-workspace.yaml`
+  (`auditConfig.ignoreCves`) sehingga terlihat saat review — bukan disenyapkan otomatis oleh flag CI.
+  Entri di sana **permanen**: wajib ditinjau ulang dan dihapus begitu upstream merilis patch
+  (pelacak: TASK-035). Advisory **baru** yang punya perbaikan tetap memerahkan CI. Gate inilah yang
+  menangkap `tinypool` (critical) di run CI pertama — perbaikannya naik `vitest` 3 → 4 (vitest 4 tidak
+  lagi memakai `tinypool`).
+- **Job yang bergantung pada baseline**: `Dependency review (PR)` butuh dependency graph branch target;
+  selama branch target belum punya manifest, job melewati dirinya sendiri dengan catatan di job summary
+  (kegagalan struktural ≠ temuan keamanan).
 
 ## 4. Secrets di CI
 

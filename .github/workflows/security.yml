@@ -25,6 +25,11 @@ jobs:
   secret-scan:
     name: Secret scanning (gitleaks)
     runs-on: ubuntu-latest
+    # gitleaks-action membaca daftar commit PR lewat API; tanpa scope ini GitHub
+    # menjawab 403 "Resource not accessible by integration".
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -64,6 +69,9 @@ jobs:
 
       - name: npm audit (high+)
         working-directory: frontend
+        # Advisory tanpa patch dicatat di `frontend/pnpm-workspace.yaml`
+        # (auditConfig.ignoreCves) supaya terlihat saat review — bukan
+        # disenyapkan otomatis. Advisory BARU yang bisa diperbaiki = CI merah.
         run: pnpm audit --audit-level=high
 
   dependency-review:

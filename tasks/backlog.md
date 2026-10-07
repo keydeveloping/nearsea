@@ -65,6 +65,13 @@ Milestone: M0 | M1 | M2 | M3 | M4
 | TASK-032 | Versioning & rilis: SemVer per-artefak + tag + CHANGELOG + versi kontrak NEP-330 (SEC-CONTRACT-006) | infra/docs | P0 (M1) | 001 | development/versioning-and-release | todo | 1 | Tag pertama + CHANGELOG terisi + versi NEP-330 terverifikasi | M0 |
 | TASK-033 | Error & notifikasi terpusat: registry kode error + pemetaan panic kontrak + kebijakan notifikasi (FE + API) | frontend/backend | P1 | 008 | development/error-handling | todo | 2 | Modul error terpusat dipakai; tidak ada pesan ad-hoc | M1+ |
 | TASK-034 | Prep scaling: app stateless + pooling + rencana read replica/LB (aktif saat trafik naik) | infra | P1 (fase 2) | 028 | architecture/scaling | todo | 3 | App stateless terverifikasi + rencana replica/LB tertulis | M2 |
+| TASK-035 | Audit dependensi: tinjau ulang advisory tanpa patch yang di-*ignore* (`--ignore-unfixable`) | infra | P2 | 001 | development/ci-cd.md §3 | todo | 0.5 | Advisory yang di-ignore punya keputusan tercatat: diperbaiki, diganti, atau diterima + alasan | M1+ |
+
+> **TASK-035 (dibuat ronde 18, TASK-001):** `pnpm audit --ignore-unfixable` melewati `braces <=3.0.3`
+> (high, ReDoS) yang masuk lewat `eslint-config-next → @next/eslint-plugin-next → fast-glob → micromatch`.
+> Versi terbaru `braces` = 3.0.3 dan **belum ada patch** (advisory `GHSA-vfj7-8cw-p6xm` / `CVE-2026-93687`),
+> jadi gate tidak bisa hijau tanpa flag ini. Dampak: dev-only (linter), bukan runtime produksi. Task ini
+> memastikan keputusannya ditinjau ulang saat upstream merilis patch.
 
 > Penomoran ID final (ronde 1–13 + audit). Perubahan scope → update lewat prosedur DOCUMENTATION-MAP.
 > Kolom Status/Estimate/Done-when/Milestone ditambahkan ronde 15; status awal semua `todo`.

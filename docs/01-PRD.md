@@ -270,7 +270,7 @@ AC lengkap per fitur: [testing/acceptance-criteria.md](./testing/acceptance-crit
 | Next.js | Framework FE | App Router | **16.4.0** |
 | TypeScript | Bahasa FE | strict mode, tanpa `any` tanpa alasan | **5.9.x** (`^5`) |
 | Tailwind CSS | Styling | v3/v4 sesuai scaffold | **4.3.x** (`^4`) |
-| Vitest + jsdom | Test FE | — | **3.x** + **30.x** |
+| Vitest + jsdom | Test FE | — | **4.x** + **30.x** |
 | TanStack Query | Server state | v5 | belum ditambah (TASK-007/008) |
 | Zustand | Client state | v4/v5 sesuai scaffold | belum ditambah (TASK-007/008) |
 | near-connect | Wallet adapter | versi terbaru (daftar wallet = daftar resmi) | belum ditambah (TASK-007) |

@@ -1,3 +1,11 @@
 ignoredBuiltDependencies:
   - sharp
   - unrs-resolver
+
+# Advisory tanpa versi perbaikan yang sengaja dilewati gate `pnpm audit`.
+# Ditulis oleh `pnpm audit --ignore-unfixable`; entri di sini PERMANEN, jadi wajib
+# ditinjau ulang (tasks/backlog.md TASK-035) dan dihapus begitu patch tersedia.
+# Penjelasan gate: docs/development/ci-cd.md 3.
+auditConfig:
+  ignoreCves:
+    - CVE-2026-93687
