@@ -61,11 +61,14 @@ Milestone: M0 | M1 | M2 | M3 | M4
 | TASK-028 | Infra: provisioning VPS + Docker Compose (FE + API + PostgreSQL) + staging subdomain | infra | P0 (M1) | 001 | infrastructure-security | todo | 3 | Stack jalan di VPS + staging subdomain hidup | M1+ |
 | TASK-029 | Infra: CI/CD deploy (GitHub Actions → SSH) + domain + SSL Caddy | infra | P0 (M1) | 028 | cicd-security | todo | 3 | Deploy dev/testnet otomatis + mainnet manual ter-gate | M1+ |
 | TASK-030 | Infra: backup pg_dump harian → object storage + restore drill (SEC-DB-004) + alert Telegram + monitoring | infra | P0 (M1) | 028 | disaster-recovery, monitoring | todo | 2 | Backup harian + restore drill lulus + alert 5xx sampai | M1+ |
-| TASK-031 | Git & repo hygiene: 3 branch (`dev`/`testnet`/`mainnet`) + proteksi branch + `.gitignore` ketat + secret scanning (SEC-CICD-002/003) | infra | P0 | 001 | development/git-workflow, development/secrets-and-gitignore | blocked | 1 | Proteksi 3 branch + gitleaks hijau + CODEOWNERS aktif | M0 |
+| TASK-031 | Git & repo hygiene: 3 branch (`dev`/`testnet`/`mainnet`) + proteksi branch + `.gitignore` ketat + secret scanning (SEC-CICD-002/003) | infra | P0 | 001 | development/git-workflow, development/secrets-and-gitignore | done | 1 | Proteksi 3 branch + gitleaks hijau + CODEOWNERS aktif | M0 |
 | TASK-032 | Versioning & rilis: SemVer per-artefak + tag + CHANGELOG + versi kontrak NEP-330 (SEC-CONTRACT-006) | infra/docs | P0 (M1) | 001 | development/versioning-and-release | todo | 1 | Tag pertama + CHANGELOG terisi + versi NEP-330 terverifikasi | M0 |
 | TASK-033 | Error & notifikasi terpusat: registry kode error + pemetaan panic kontrak + kebijakan notifikasi (FE + API) | frontend/backend | P1 | 008 | development/error-handling | todo | 2 | Modul error terpusat dipakai; tidak ada pesan ad-hoc | M1+ |
 | TASK-034 | Prep scaling: app stateless + pooling + rencana read replica/LB (aktif saat trafik naik) | infra | P1 (fase 2) | 028 | architecture/scaling | todo | 3 | App stateless terverifikasi + rencana replica/LB tertulis | M2 |
 | TASK-035 | Audit dependensi: tinjau ulang advisory tanpa patch yang di-*ignore* (`--ignore-unfixable`) | infra | P2 | 001 | development/ci-cd.md §3 | todo | 0.5 | Advisory yang di-ignore punya keputusan tercatat: diperbaiki, diganti, atau diterima + alasan | M1+ |
+
+> **TASK-031 `done` (ronde 18c):** repo dijadikan **publik** oleh user → branch protection tersedia (sebelumnya 403 "butuh GitHub Pro" saat private). Proteksi **aktif** di `dev`/`testnet`/`mainnet`: PR wajib, force-push & delete diblokir **termasuk admin** (`enforce_admins`), 5 required status checks, conversation resolution; `strict` (branch up-to-date) di testnet/mainnet. Tag protection via ruleset `protect-release-tags` (`contract-v*`/`web-v*`/`indexer-v*`: delete + update diblokir). **Bukti**: push langsung ke `dev` ditolak GitHub — `GH006 Protected branch update failed … Changes must be made through a pull request. 5 of 5 required status checks are expected.`
+> **Required approval = 0 (ditunda, keputusan user ronde 18c):** repo hanya punya satu akun dan GitHub melarang self-approve, jadi approval 2/1 akan mengunci semua PR. Naikkan ke `testnet`=1 / `mainnet`=2 saat ada maintainer kedua ([git-workflow.md](../../docs/development/git-workflow.md) §16). `require_code_owner_reviews` juga ditunda karena alasan yang sama.
 
 > **TASK-035 (dibuat ronde 18, TASK-001):** `braces <=3.0.3` (high, ReDoS) masuk lewat
 > `eslint-config-next → @next/eslint-plugin-next → fast-glob → micromatch`. Versi terbaru `braces` = 3.0.3
@@ -74,12 +77,10 @@ Milestone: M0 | M1 | M2 | M3 | M4
 > (`auditConfig.ignoreCves`) — terlihat saat review, bukan disenyapkan flag CI. Dampak: dev-only (linter),
 > bukan runtime produksi. Task ini memastikan keputusannya ditinjau ulang saat upstream merilis patch.
 
-> **TASK-031 `blocked` (ronde 18b):** 3 branch + `.gitignore` ketat + gitleaks sudah selesai dan hijau di CI,
-> tetapi **branch protection di repo private butuh GitHub Pro** — API menjawab 403 "Upgrade to GitHub Pro or
-> make this repository public" meski token punya `admin`. Hal yang sama menonaktifkan secret scanning
-> GitHub-native + Dependabot security updates. Butuh keputusan user: upgrade plan, jadikan repo publik, atau
-> terima proteksi branch ditunda. CODEOWNERS sudah ada tapi belum berfungsi sebagai required review karena
-> proteksi branch tidak bisa diaktifkan.
+> **TASK-031 riwayat `blocked` → `done` (ronde 18b → 18c):** saat repo masih **private**, branch protection
+> butuh GitHub Pro (API 403 "Upgrade to GitHub Pro or make this repository public") meski token punya `admin`;
+> hal yang sama menonaktifkan secret scanning GitHub-native + Dependabot security updates. **User menjadikan
+> repo publik**, sehingga blokir itu hilang dan proteksi dipasang (lihat catatan `done` di atas).
 
 > Penomoran ID final (ronde 1–13 + audit). Perubahan scope → update lewat prosedur DOCUMENTATION-MAP.
 > Kolom Status/Estimate/Done-when/Milestone ditambahkan ronde 15; status awal semua `todo`.

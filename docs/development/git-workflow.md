@@ -83,16 +83,41 @@ Format: `tipe(scope): deskripsi`. Tipe: `feat`, `fix`, `docs`, `test`, `chore`, 
 - Commit yang menutup task sebutkan ID: `feat(market): bundle pre-validation (TASK-010)`.
 - **Signed commits** direkomendasikan (RECOMMENDED, belum aktif — lihat [cicd-security.md](../security/cicd-security.md)).
 
-## 8. Proteksi branch (target konfigurasi)
+## 8. Proteksi branch (AKTIF — ronde 18c)
 
-| Branch | Force push | Delete | Review | Status checks |
-|---|---|---|---|---|
-| `mainnet` | diblokir (termasuk admin) | diblokir | 2 | CI + Security |
-| `testnet` | diblokir | diblokir | 1 | CI + Security |
-| `dev` | diblokir | diblokir | 1 | CI |
+Konfigurasi **aktif** di GitHub (repo `keydeveloping/nearsea`), dipasang lewat API branch protection:
 
-- 2FA GitHub **wajib** untuk semua kontributor (FACT kemampuan GitHub).
+| Setting | `mainnet` | `testnet` | `dev` |
+|---|---|---|---|
+| Force push | diblokir (termasuk admin) | diblokir (termasuk admin) | diblokir (termasuk admin) |
+| Delete branch | diblokir | diblokir | diblokir |
+| PR wajib sebelum merge | ya | ya | ya |
+| **Required approval** | **0 (ditunda)** | **0 (ditunda)** | **0 (ditunda)** |
+| Dismiss stale review | ya | ya | ya |
+| Required status checks | 5 check (CI + Security) | 5 check | 5 check |
+| Branch harus up-to-date (`strict`) | ya | ya | tidak |
+| Conversation resolution | ya | ya | ya |
+
+- **Kenapa approval 0 (bukan 2/1 seperti tabel awal):** repo saat ini hanya punya **satu akun** (`keydeveloping`), dan GitHub **melarang self-approve** — required approval akan mengunci SEMUA PR (termasuk PR Dependabot) tanpa bisa di-merge. **Keputusan user (ronde 18c): tunda approval** sampai ada maintainer kedua, lalu naikkan ke `testnet`=1 / `mainnet`=2 sesuai §16. Ini mengikuti semangat §16 ("jangan menurunkan setting untuk mengakali") tanpa membuat repo tidak bisa dipakai.
+- **`enforce_admins: true`** di ketiga branch: admin pun tidak bisa bypass (spec: "diblokir (termasuk admin)").
+- **Tag protection**: ruleset `protect-release-tags` memblokir **delete** + **update** tag pola `contract-v*`/`web-v*`/`indexer-v*` (§12).
+- **CODEOWNERS** sudah ada (`.github/CODEOWNERS`) dan aktif sebagai reviewer otomatis. *Require review from Code Owners* **belum** diaktifkan — mengaktifkannya sama dengan menambah required approval, yang saat ini akan mengunci repo (lihat di atas).
+- **2FA GitHub wajib** untuk semua kontributor (FACT kemampuan GitHub).
 - Perubahan aturan branch ini = keputusan proses → update dokumen ini + ADR bila mengubah kebijakan.
+
+### 8a. Required status checks (nama persis — sudah dipasang)
+
+Nama di GitHub **harus sama persis** dengan `name:` job; kalau tidak, check tidak pernah hijau dan PR terkunci. Lima nama di bawah sudah diverifikasi cocok terhadap job yang benar-benar dilaporkan:
+
+| Required check | Workflow |
+|---|---|
+| `Contracts — fmt, clippy, test` | ci.yml |
+| `Frontend — lint, typecheck, build` | ci.yml |
+| `Secret scanning (gitleaks)` | security.yml |
+| `Dependency audit (cargo + npm)` | security.yml |
+| `Dependency review (PR)` | security.yml |
+
+- `Dependency review (PR)` hanya berjalan pada event `pull_request`; pada push ia `skipped` dan tidak memblokir promosi.
 
 ## 9. Strategi merge (DECIDED)
 
@@ -129,12 +154,12 @@ Tabel di bawah = **pemetaan peran** yang jadi acuan saat handle diganti (`@nears
 | `/CHANGELOG.md` | `@nearsea/release-owner` | Konsistensi rilis (versioning-and-release.md). |
 
 - CODEOWNERS **tidak** menggantikan required approval; ia menambahkan reviewer otomatis saat file tersebut tersentuh.
-- Branch protection: `mainnet`/`testnet` mengaktifkan *Require review from Code Owners*; `dev` tidak (lihat [cicd-security.md](../security/cicd-security.md) §8).
+- Branch protection: `mainnet`/`testnet` **direncanakan** mengaktifkan *Require review from Code Owners*; `dev` tidak (lihat [cicd-security.md](../security/cicd-security.md) §8). **Saat ini belum diaktifkan** karena sama dengan menambah required approval — akan mengunci repo dengan satu akun (§8).
 - Bila file CODEOWNERS sendiri diubah → perubahan itu juga butuh review dari owner yang tercantum (self-protecting).
 
 ## 11. Required status checks (nama persis)
 
-Nama check **wajib sama persis** dengan `name:` job di workflow — beda satu karakter = check tidak pernah hijau dan PR terkunci.
+Nama check **wajib sama persis** dengan `name:` job di workflow — beda satu karakter = check tidak pernah hijau dan PR terkunci. Lima nama di bawah **sudah dipasang** di ketiga branch permanen (ronde 18c).
 
 | Required check | Workflow | Berlaku |
 |---|---|---|
@@ -157,7 +182,7 @@ Aturan tag selaras [versioning-and-release.md](./versioning-and-release.md) §1.
 |---|---|
 | Pola tag dilindungi | `contract-v*`, `web-v*`, `indexer-v*` |
 | Buat tag | Hanya via maintainer (manusia) setelah PR promosi merge — **tidak** dari PR/branch fitur |
-| Ubah/hapus tag | **Diblokir** (tag = rilis; menghapusnya merusak provenance) |
+| Ubah/hapus tag | **Diblokir** — ruleset `protect-release-tags` (ronde 18c) |
 | Tag bergerak (moving tag) | **Dilarang** — tag selalu menunjuk commit tetap |
 | Tag anotasi | **Wajib** (`git tag -a`) — memuat tagger, tanggal, pesan rilis |
 | Tag di branch mana | Hanya pada `testnet`/`mainnet` setelah merge (bukan `dev`) |
@@ -326,5 +351,5 @@ Langkah onboarding:
 
 - Model 3 branch — **DECIDED (ronde 14)**.
 - Strategi merge (§9) — **DECIDED (ronde 15)**; menyesuaikan *linear history* `testnet`/`mainnet` (sinkronkan cicd-security §8).
-- Proteksi branch, tag protection, commit signing — **PROPOSED** (dikonfigurasi di GitHub saat repo punya remote, TASK-031/029). **`CODEOWNERS` & `dependabot.yml` sudah dibuat (TASK-001)** — lihat §10/§14.
+- Proteksi branch + tag protection — **AKTIF (ronde 18c)**, dipasang lewat API setelah repo dijadikan publik. **Required approval ditunda = 0** sampai ada maintainer kedua (alasan di §8). Commit signing — **PROPOSED**. **`CODEOWNERS` & `dependabot.yml` sudah dibuat (TASK-001)** — lihat §10/§14.
 - Named approvers (§16) — **PROPOSED** (handle peran diganti saat tim bertambah; saat ini satu maintainer `@keydeveloping` merangkap semua peran).

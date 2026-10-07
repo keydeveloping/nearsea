@@ -11,7 +11,8 @@
 
 - Semua dokumen inti terisi (hasil tanya-jawab + audit), stack final, repo scaffold.
 - Done when: agent bisa mulai koding tanpa bertanya arah.
-- **Status TASK-001 (2026-10-07): ✅ `done`.** Workspace + manifest + workflow ada dan gate hijau di dua tempat: lokal (fmt/clippy/test kontrak; lint/format/typecheck/test/build FE) **dan** CI GitHub di branch `dev` (PR #1, commit `223015b` — run CI + Security `success`). Repo remote: `github.com/keydeveloping/nearsea`. M0 tertutup; TASK-031 (proteksi branch) menjadi pekerjaan berikutnya.
+- **Status TASK-001 (2026-10-07): ✅ `done`.** Workspace + manifest + workflow ada dan gate hijau di dua tempat: lokal (fmt/clippy/test kontrak; lint/format/typecheck/test/build FE) **dan** CI GitHub di branch `dev` (PR #1, commit `223015b` — run CI + Security `success`). Repo remote: `github.com/keydeveloping/nearsea`.
+- **Status TASK-031 (2026-10-07, ronde 18c): ✅ `done`.** Model 3 branch ditegakkan platform: proteksi aktif di `dev`/`testnet`/`mainnet` (PR wajib, force-push & delete diblokir termasuk admin, 5 required status checks, conversation resolution) + ruleset tag protection. Bukti: push langsung ke `dev` ditolak GitHub. **M0 tertutup.** Catatan terbuka: required approval ditunda (repo satu akun) — dinaikkan saat maintainer kedua ada.
 
 ## M1 — Vertical slice: mint → list → buy (testnet) ⭐ **milestone pertama yang wajib**
 
