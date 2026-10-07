@@ -2,6 +2,10 @@
 
 > Semua pekerjaan yang diketahui, diurutkan by ID. Prioritas: **P0 = memblokir M1 atau gate milestone lain (mis. M4)**, P1 = MVP lanjutan/fase 2, P2 = fase lanjut.
 > Area boleh gabungan (mis. `contract/frontend`) bila satu task menyentuh beberapa lapisan.
+>
+> **Tiket kerja M1:** slice M1 sudah dipecah jadi tiket siap-kerjakan di
+> [`.scratch/m1-slice/`](../.scratch/m1-slice/spec.md) (10 tiket, `TASK-001..008` + `031`/`032`).
+> Tabel di bawah tetap **SSOT prioritas & status**; tiket hanya state kerja turunan.
 
 ## Format task
 
