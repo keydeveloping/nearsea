@@ -163,25 +163,40 @@ jobs:
 
       # Build di container ter-pin by digest — toolchain rilis = isi image,
       # bukan rust-toolchain.toml lokal (versioning-and-release.md §2).
-      # Tiap crate masuk sub-folder sendiri agar nama file wasm tidak bertabrakan.
+      # `--out-dir` menyalin hasil sebagai `contract.wasm` untuk SETIAP crate, jadi
+      # tiap wasm di-rename ke nama crate-nya: nama artifact GitHub Release harus unik.
       - name: Reproducible build (NEP-330)
         run: |
           set -euo pipefail
+          mkdir -p artifacts
           for crate in contract market factory; do
+            pkg=$(awk -F'"' '/^\[package\]/{p=1} p && /^name[[:space:]]*=/{print $2; exit}' "$crate/Cargo.toml")
             cargo near build reproducible-wasm \
               --manifest-path "$crate/Cargo.toml" \
-              --out-dir "artifacts/$crate"
+              --out-dir "$RUNNER_TEMP/build/$crate"
+
+            wasm=$(find "$RUNNER_TEMP/build/$crate" -name '*.wasm' -type f | head -n1)
+            if [ -z "$wasm" ]; then
+              echo "wasm tidak ditemukan untuk $crate"; exit 1
+            fi
+            cp "$wasm" "artifacts/$pkg.wasm"
+            echo "$crate -> artifacts/$pkg.wasm"
           done
-          find artifacts -name '*.wasm' -type f | sort
+          ls -l artifacts
 
       - name: Verify embedded NEP-330 metadata matches tag
         run: |
           set -euo pipefail
           expected="${RELEASE_TAG#contract-v}"
           repo="https://github.com/${GITHUB_REPOSITORY}"
-          checked=0
 
-          while IFS= read -r wasm; do
+          for crate in contract market factory; do
+            pkg=$(awk -F'"' '/^\[package\]/{p=1} p && /^name[[:space:]]*=/{print $2; exit}' "$crate/Cargo.toml")
+            wasm="artifacts/$pkg.wasm"
+            if [ ! -f "$wasm" ]; then
+              echo "$wasm tidak ada"; exit 1
+            fi
+
             # Metadata NEP-330 tertanam sebagai string JSON di dalam wasm.
             meta=$(grep -a -o -E '\{"version":"[^"]+","link":(null|"[^"]+"),' "$wasm" | head -n1 || true)
             if [ -z "$meta" ]; then
@@ -191,7 +206,7 @@ jobs:
 
             got=$(printf '%s' "$meta" | sed -E 's/^\{"version":"([^"]+)".*/\1/')
             link=$(printf '%s' "$meta" | sed -E 's/^.*"link":([^,]+),$/\1/')
-            echo "$wasm: version=$got link=$link"
+            echo "$pkg: version=$got link=$link"
 
             if [ "$got" != "$expected" ]; then
               echo "$wasm: versi NEP-330 '$got' != versi tag '$expected'"
@@ -201,20 +216,13 @@ jobs:
               echo "$wasm: link NEP-330 '$link' != '$repo' (package.repository)"
               exit 1
             fi
-            checked=$((checked + 1))
-          done < <(find artifacts -name '*.wasm' -type f | sort)
-
-          # Tiga crate kontrak wajib terverifikasi — artifact hilang = rilis gagal.
-          if [ "$checked" -ne 3 ]; then
-            echo "Hanya $checked wasm terverifikasi (diharapkan 3: contract, market, factory)"
-            exit 1
-          fi
-          echo "$checked wasm terverifikasi."
+          done
+          echo "Metadata NEP-330 ketiga crate cocok dengan tag $RELEASE_TAG."
 
       - name: Record wasm code hash (sha256)
         run: |
           set -euo pipefail
-          find artifacts -name '*.wasm' -type f | sort | xargs sha256sum | tee artifacts/code-hash.txt
+          sha256sum artifacts/*.wasm | tee artifacts/code-hash.txt
 
       - name: Upload release artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -222,7 +230,7 @@ jobs:
           name: release-${{ env.RELEASE_TAG }}
           retention-days: 90
           path: |
-            artifacts/**/*.wasm
+            artifacts/*.wasm
             artifacts/code-hash.txt
 
       # Artifact rilis wajib dilampirkan ke GitHub Release agar tidak hilang
@@ -233,9 +241,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          mapfile -t wasm < <(find artifacts -name '*.wasm' -type f | sort)
           gh release create "${RELEASE_TAG}" \
             --title "${RELEASE_TAG}" \
             --generate-notes \
             --verify-tag \
-            artifacts/code-hash.txt "${wasm[@]}"
+            artifacts/code-hash.txt artifacts/*.wasm
