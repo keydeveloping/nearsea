@@ -1,0 +1,15 @@
+# Gitleaks — secret-scan gate lokal (dirujuk AGENTS.md + README):
+#   gitleaks detect --config .gitleaks.toml --redact
+# Mengextend konfigurasi default gitleaks; file ini hanya menambah allowlist.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Placeholder & ilustrasi — bukan kredensial nyata"
+paths = [
+  # .env.example = template variabel saja (isi placeholder, tanpa nilai rahasia).
+  '''(^|/)\.env\.example$''',
+  # docs/ (markdown) memuat string berbentuk kunci/token hanya sebagai ilustrasi dokumen.
+  '''^docs/.*\.md$''',
+]

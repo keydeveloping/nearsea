@@ -1,0 +1,71 @@
+# =============================================================================
+# Security — NearSea
+# SKELETON. Gate keamanan supply-chain: secret scanning + dependency review +
+# audit dependensi. Aturan: docs/development/secrets-and-gitignore.md
+# Register requirement: docs/security/security-requirements.md (SEC-CICD-001).
+# =============================================================================
+
+name: Security
+
+on:
+  pull_request:
+    branches: [dev, testnet, mainnet]
+  push:
+    branches: [dev, testnet, mainnet]
+  schedule:
+    # Audit berkala (tiap Senin 03:00 UTC) untuk menangkap CVE baru.
+    - cron: "0 3 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  secret-scan:
+    name: Secret scanning (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  dependency-audit:
+    name: Dependency audit (cargo + npm)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: cargo audit
+        run: |
+          cargo install cargo-audit --locked
+          cargo audit
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: npm audit (high+)
+        working-directory: frontend
+        run: pnpm audit --audit-level=high
+
+  dependency-review:
+    name: Dependency review (PR)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high

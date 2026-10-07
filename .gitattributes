@@ -1,0 +1,27 @@
+# Normalisasi line ending: simpan LF di repo, apa pun OS-nya.
+* text=auto eol=lf
+
+# File biner — jangan di-diff/konversi.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.wasm binary
+*.pdf binary
+*.zip binary
+*.gz binary
+
+# Lockfile — anggap generated, jangan tampilkan diff besar (tetap di-review).
+pnpm-lock.yaml -diff linguist-generated
+package-lock.json -diff linguist-generated
+yarn.lock -diff linguist-generated
+Cargo.lock -diff linguist-generated
+
+# File dokumentasi
+*.md text eol=lf

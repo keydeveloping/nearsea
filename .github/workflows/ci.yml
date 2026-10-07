@@ -1,0 +1,116 @@
+# =============================================================================
+# CI — NearSea
+# SKELETON: struktur pipeline final; job berisi perintah nyata yang akan jalan
+# begitu kode ada (Fase 1 scaffold, TASK-001). Sebelum scaffold, job build/test
+# akan gagal karena belum ada manifest — itu wajar dan diharapkan.
+#
+# Aturan & gate lengkap: docs/development/ci-cd.md
+# Keamanan pipeline:    docs/security/cicd-security.md
+# =============================================================================
+
+name: CI
+
+on:
+  pull_request:
+    branches: [dev, testnet, mainnet]
+  push:
+    branches: [dev, testnet, mainnet]
+
+# Batalkan run lama saat ada push baru ke branch yang sama.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # --- Kontrak (Rust) ---------------------------------------------------------
+  contracts:
+    name: Contracts — fmt, clippy, test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+          targets: wasm32-unknown-unknown
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Format check
+        run: cargo fmt --all -- --check
+
+      - name: Clippy (deny warnings)
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Unit + sandbox tests (near-workspaces)
+        run: cargo test --workspace
+
+      - name: Build wasm
+        run: cargo near build non-reproducible-wasm
+
+      - name: Record wasm code hash (sha256)
+        run: |
+          mkdir -p artifacts
+          sha256sum target/near/*.wasm | tee artifacts/code-hash.txt
+
+      - name: Upload contract artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: contracts-wasm
+          path: |
+            target/near/*.wasm
+            artifacts/code-hash.txt
+
+  # --- Frontend (Next.js) -----------------------------------------------------
+  frontend:
+    name: Frontend — lint, typecheck, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install (frozen lockfile)
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        working-directory: frontend
+        run: pnpm lint
+
+      - name: Typecheck
+        working-directory: frontend
+        run: pnpm typecheck
+
+      - name: Test (Vitest)
+        working-directory: frontend
+        run: pnpm test -- --run
+
+      - name: Build
+        working-directory: frontend
+        run: pnpm build
+        env:
+          # Build TIDAK butuh secret produksi (FACT) — hanya nilai publik.
+          NEXT_PUBLIC_NEAR_NETWORK: testnet
+          NEXT_PUBLIC_NEAR_RPC_URL: ${{ vars.NEAR_RPC_URL }}

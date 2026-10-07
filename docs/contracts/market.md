@@ -1,0 +1,428 @@
+# Contract Reference — Market (Listing / Offer / Bundle / Settlement)
+
+> Reference implementasi (ronde 16). Perilaku/settlement = SSOT di [features/marketplace.md](../features/marketplace.md); dokumen ini memiliki signature, layout state, konstanta, dan pemetaan method→event→error.
+
+## Peran & batas dokumen
+
+Kontrak **Market** = satu kontrak gabungan untuk listing + offer + private listing + bundle ([ADR-003](../decisions/ADR-003-single-market-contract.md)); satu otoritas settlement on-chain ([ADR-012](../decisions/ADR-012-order-settlement-authority.md)). Non-custodial: NFT tetap di wallet seller, market hanya memegang approval NEP-178 ([ADR-007](../decisions/ADR-007-approval-listing-model.md)).
+
+| Fakta | Pemilik (dokumen ini hanya merujuk) |
+|---|---|
+| Alur listing 2-tx, buy, offer, bundle, stale | [features/marketplace.md](../features/marketplace.md) |
+| Algoritma payout, fee 2%, merge bundle, refund | [features/payments.md](../features/payments.md) |
+| Skema payload event (field-level) | [api/webhooks.md](../api/webhooks.md) |
+| Registry kode error & pemetaan panic→kode | [development/error-handling.md](../development/error-handling.md) §3/§4 |
+| Invariant INV-001..030 | [smart-contract-invariants.md](../security/smart-contract-invariants.md) |
+| Tabel akses per-method (prosa) | [smart-contract-security-architecture.md](../security/smart-contract-security-architecture.md) §11 |
+
+Basis tooling: Rust + `near-sdk` + `near-sdk-contract-tools` (`Owner` + `Pausable` + NEP-145 derive). Upgrade path & rencana test migrasi: contract-architecture §2/§14.
+
+---
+
+## 1. Init — `new`
+
+```rust
+#[near(contract_state)]
+#[derive(PanicOnDefault)]                 // SEC-CONTRACT-002 (TC-001)
+pub struct MarketContract { /* config + persistent collections, §7 */ }
+
+#[near]
+impl MarketContract {
+    #[init]
+    pub fn new(
+        owner_id: AccountId,              // Platform Owner (MVP single-key; mainnet = DAO — ADR-013)
+        fee_bps: Option<u16>,             // default FEE_BPS_DEFAULT = 200; wajib ≤ MAX_FEE_BPS
+        treasury: Option<AccountId>,      // ⏳ open-by-design — default = owner_id (MVP, payments.md)
+    ) -> Self;
+
+    /// Upgrade path — hanya dipanggil saat redeploy + migrate (contract-arch §2/§14).
+    #[init(ignore_state)]
+    pub fn migrate() -> Self;
+}
+```
+
+| Arg | Status | Catatan |
+|---|---|---|
+| `owner_id` | ✅ DECIDED | MVP = single owner key (interim, ADR-013); mainnet = Sputnik DAO V2 council 2-of-3 + timelock (SEC-CONTRACT-012). |
+| `fee_bps` | ✅ DECIDED (default 200) | Assert `fee_bps ≤ MAX_FEE_BPS (500)` saat init — gagal → panic (`CHAIN_REVERT`). Cap immutable ditegakkan juga di `update_fee_bps` (INV-004). |
+| `treasury` | ⏳ open-by-design | Alamat treasury ditetapkan saat deploy testnet; sementara = owner market ([features/payments.md](../features/payments.md) §MVP). Bisa diganti owner via `update_treasury` (§4). |
+
+---
+
+## 2. Method reference (mutasi order)
+
+> Signature = kanonik; skema argumen field-by-field = SSOT [features/marketplace.md](../features/marketplace.md) § Skema Argumen — tidak diduplikasi di sini. Gas PROPOSED = estimasi, diukur sandbox; FACT = terukur ([features/payments.md](../features/payments.md) §Anggaran Gas). Batas keras **300 Tgas/call** (FACT).
+
+| Method | Signature (ringkas) | Deposit | Auth (predecessor) | Checks (INV) | Event | Gas (Tgas) | Error utama |
+|---|---|---|---|---|---|---|---|
+| `list_nft_for_sale` | `(nft_contract_id, token_id, approval_id: Option<u64>, price: U128, allowed_buyer: Option<AccountId>)` | **storage NEP-145** (bukan 1 yocto) | seller = owner token | dual verify via XCC: `nft_token().owner_id == predecessor` + `nft_is_approved(market, approval_id)`; `price ≥ MIN_PRICE` (INV-030); belum ter-list (INV-007 → `CONFLICT_ALREADY_LISTED`); tidak di bundle aktif (INV-028 → `CONFLICT_BUNDLE_ITEM_INVALID`); callback `process_listing` | `market_list` (di callback) | ≈10–20 total (PROPOSED): write ~5 + 2 view ~3–5 | `INVALID_PRICE`, `CONFLICT_ALREADY_LISTED`, `CONFLICT_BUNDLE_ITEM_INVALID`, `CHAIN_REVERT` (storage) |
+| `remove_sale` | `(nft_contract_id, token_id)` | 1 yocto (`assert_one_yocto`) | `sale.owner_id` | entry ada; `nft_revoke_token(token_id, market)` sebagai approved account (bukan `nft_revoke` owner-only); boleh saat paused (INV-022) | `market_delist` | ~5 PROPOSED | `CHAIN_REVERT` |
+| `update_price` | `(nft_contract_id, token_id, new_price: U128)` | 1 yocto | `sale.owner_id` | `new_price ≥ MIN_PRICE` (INV-030); entry ada (harga diganti in-place; `approval_id` tidak berubah) | `market_update_price` | ~5 PROPOSED | `INVALID_PRICE`, `CHAIN_REVERT` |
+| `buy` | `(nft_contract_id, token_id)` | **≥ price** (kelebihan di-refund via resolve) | buyer ≠ seller | listing ada (INV-008 → `CONFLICT_SOLD`); bukan stale — ownership cocok **dan** approval masih valid (INV-016 → `CONFLICT_STALE`); private → `allowed_buyer` (INV-026 → `FORBIDDEN_BUYER`); **tulis `pending_purchases` SEBELUM optimistic removal** (INV-031 — jalur pemulihan bila callback gagal) | `market_sale` (di resolve) | < 150 PROPOSED (15 + 115 FACT) | `CONFLICT_SOLD`, `CONFLICT_STALE`, `FORBIDDEN_SELF_BUY`, `FORBIDDEN_BUYER`, `CHAIN_INSUFFICIENT_DEPOSIT` |
+| `make_offer` | `(nft_contract_id, token_id, expires_at: Option<u64>)` | **= amount** (exact escrow, INV-006); storage offer = pre-deposit NEP-145 terpisah | buyer ≠ owner token | `amount ≥ MIN_PRICE` (INV-030); belum ada offer aktif buyer/token (INV-024 → `CONFLICT_OFFER_EXISTS`); bukan owner token **saat itu** (INV-023); `expires_at` None → `now + DEFAULT_OFFER_DURATION_NS` | `market_offer` | ~5 PROPOSED | `CONFLICT_OFFER_EXISTS`, `FORBIDDEN_SELF_BUY`, `INVALID_PRICE`, `CHAIN_REVERT` (storage) |
+| `cancel_offer` | `(nft_contract_id, token_id)` | 1 yocto | `offer.buyer_id` | entry ada; refund penuh escrow ke `offer.buyer_id` (hardcoded, INV-005/014); boleh saat paused (INV-022) | `market_offer_cancel` | ~5–10 PROPOSED | `CHAIN_REVERT` |
+| `accept_offer` | `(nft_contract_id, token_id, buyer_id)` | 1 yocto | owner token **saat itu** | `env::block_timestamp() < expires_at` (INV-010); ownership saat itu (INV-016); entry dihapus atomik sebelum settle (INV-009); offer lain pada token sama → auto-cancel + refund (SUPERSEDED) | `market_offer_accept` (di resolve) | ~15 + 115 (15 FACT; total < 150 PROPOSED) | `CONFLICT_SOLD` (offer hilang), `CONFLICT_STALE`, `CHAIN_REVERT` |
+| `create_bundle` | `(items: Vec<BundleItem>, price: U128)` | **storage NEP-145** | seller = owner SEMUA token | `1 ≤ items.len() ≤ MAX_BUNDLE_TOKENS` (INV-021 → `CONFLICT_BUNDLE_TOO_MANY`); tiap token milik seller + approval valid (XCC); token tidak ter-list/di-offer terpisah (INV-028 → `CONFLICT_BUNDLE_ITEM_INVALID`); receiver unik hasil merge ≤ `MAX_PAYOUT_RECEIVERS` (INV-021/027); **pre-validasi royalti ronde 16** (basis(token) — §3): `Σroyalti + fee ≤ price` (INV-025 → `CONFLICT_PRE_VALIDATE_FAILED`) | `market_bundle_create` | PROPOSED — diukur (XCC pre-validation) | `CONFLICT_BUNDLE_TOO_MANY`, `CONFLICT_BUNDLE_ITEM_INVALID`, `CONFLICT_PRE_VALIDATE_FAILED`, `INVALID_PRICE` |
+| `buy_bundle` | `(bundle_id: u64)` | **≥ bundle price** | buyer ≠ seller (INV-023) | bundle `ACTIVE`; **pre-validasi SEMUA item sebelum transfer pertama** (ownership + approval + payout simulasi — INV-025 → `CONFLICT_PRE_VALIDATE_FAILED`); satu token bundle stale/pindah → seluruh bundle tak bisa dibeli (INV-028); loop `nft_transfer_payout` per token; fee dipotong **sekali**; merge ≤ 10 receiver | `market_sale` per token (bentuk payload ⏳ — §3) / `market_bundle_partial` | PROPOSED — **wajib diukur** (jalur paling rawan gas, INV-021) | `CONFLICT_PRE_VALIDATE_FAILED`, `FORBIDDEN_SELF_BUY`, `NOT_FOUND_BUNDLE`, `CHAIN_INSUFFICIENT_DEPOSIT` |
+| `cancel_bundle` | `(bundle_id: u64)` | 1 yocto | `bundle.seller` | bundle ada; status → CANCELLED; `nft_revoke_token` per token (market sebagai approved account); token bebas di-list lagi (INV-028 berhenti); boleh saat paused (INV-022) | `market_bundle_cancel` | ~5–10 PROPOSED | `NOT_FOUND_BUNDLE`, `CHAIN_REVERT` |
+| `remove_stale_listing` | `(nft_contract_id, token_id)` | 1 yocto + gas XCC | **siapa pun** (permissionless) | kontrak **wajib** membuktikan staleness on-chain via XCC (bukan percaya klaim pemanggil): **ownership mismatch** `nft_token().owner_id != sale.owner_id` **ATAU** **approval tidak valid** `!nft_is_approved(sale.owner_id, market, approval_id)` (INV-016 dua kasus — §3a); bila tidak stale → tidak ada efek; boleh saat paused (INV-022) | `market_delist` (+ `market_stale_detected` saat deteksi) | ~10–15 PROPOSED (2 XCC) | `CONFLICT_STALE` (bila bukan stale — dipanggil sia-sia), `CHAIN_REVERT` |
+| `recover_stuck_purchase` | `(nft_contract_id, token_id)` | 1 yocto | **siapa pun** (permissionless) | ada entri `pending_purchases` untuk sale key tsb **dan** `env::block_height() > pending.created_height + RECOVERY_DELAY_BLOCKS` (callback pasti sudah selesai/gagal) → restore `Sale` (bila token masih milik seller) + **refund penuh ke `pending.buyer`** + hapus entri; boleh saat paused (INV-022) | `market_purchase_recovered` | ~5 PROPOSED | `NOT_FOUND_*` (tidak ada pending), `CHAIN_REVERT` (terlalu dini) |
+| `nft_on_approve` | `(owner_id, approval_id, msg)` — masuk NEP-178 | 1 yocto | predecessor = kontrak NFT (pengirim approval) | **bukan** `#[private]` (INV-013); validasi payload NEP-178; **TIDAK membuat listing** (ADR-002 — listing hanya via `list_nft_for_sale` + dual verification) | — | PROPOSED (minimal) | `CHAIN_REVERT` (payload) |
+
+- `assert_one_yocto()` hanya untuk mutasi berbasis state yang tidak menerima deposit variabel (SEC-CONTRACT-001) — `list_nft_for_sale` & `create_bundle` **tidak** memakainya (deposit = storage).
+- Stale = **lazy evaluation** (MVP tanpa cron — FACT): expiry offer & mismatch ownership dievaluasi saat disentuh; refund lazy selalu ke `buyer_id` (INV-005) + `market_offer_expire` saat refund dieksekusi ([features/marketplace.md](../features/marketplace.md) §Expiry Sweep).
+
+### `BundleItem` (tipe argumen)
+
+```rust
+#[derive(Serialize, Deserialize, Clone)]
+pub struct BundleItem {
+    pub nft_contract_id: AccountId,
+    pub token_id: String,
+    pub approval_id: Option<u64>,
+}
+```
+
+---
+
+## 3. Callback `#[private]` (INV-013 — predecessor = kontrak sendiri)
+
+### `process_listing` — hasil dual verification listing
+
+```rust
+#[private]
+pub fn process_listing(
+    &mut self,
+    #[callback_result] token: Result<Token, PromiseError>,      // hasil nft_token(token_id)
+    #[callback_result] approved: Result<bool, PromiseError>,    // hasil nft_is_approved(token_id, market, approval_id)
+    // konteks: nft_contract_id, token_id, approval_id, price, allowed_buyer
+) {
+    // assert token.ok && approved.ok ("Marketplace contract is not approved" — pola RESEARCH.md §10.4)
+    // assert token.owner_id == predecessor ("Signer is not NFT owner")
+    // simpan Sale + emit market_list; gagal → tidak ada state ditulis (deposit storage tetap milik user)
+}
+```
+
+- Gas: pakai sisa budget `list_nft_for_sale` (total ≈10–20 Tgas — PROPOSED); `GAS_FOR_DUAL_VERIFY` (§6).
+
+### `resolve_purchase` — settlement buy / accept_offer
+
+Algoritma distribusi = SSOT [features/payments.md](../features/payments.md) §Algoritma Distribusi Payout; di sini yang dipegang: **validasi + urutan transfer + revert/refund**.
+
+```rust
+#[private]
+pub fn resolve_purchase(&mut self, #[callback_result] xcc: Result<Payout, PromiseError>) {
+    // GAGAL promise (revert NFT contract / gas) → restore entry Sale + refund buyer (SEC-ORDER-001)
+    //   refund = Promise::new(buyer).transfer(attached yang masuk)  (INV-001: Σ keluar ≤ Σ masuk)
+    // SUKSES → validasi payout (UNTRUSTED, dari NFT contract):
+    //   1 ≤ len(payout) ≤ MAX_PAYOUT_RECEIVERS               (INV-003; duplikat sudah di-merge)
+    //   setiap amount > 0
+    //   fee = floor(price × fee_bps / 10_000);  Σpayout ≤ price − fee   (INV-002)
+    //   sisa = (price − fee) − Σpayout ∈ {0, 1} yocto                    (INV-002)
+    //   royalti per token ≤ 10% harga wajar (INV-027 — rate dari koleksi; market membandingkan)
+    // → transfer: fee → treasury; payout → receiver; residual → seller
+    // → refund kelebihan deposit ke buyer (harga berubah saat signing — CONFLICT_PRICE_CHANGED preview)
+    // → emit market_sale (payout = map penerima final)
+}
+```
+
+- Dust ≤1 yocto tidak direfund terpisah (toleransi pembulatan — [features/payments.md](../features/payments.md)).
+- Validasi gagal di langkah mana pun → refund penuh buyer + restore Sale (listing tetap ada bila kegagalan bukan stale — [features/payments.md](../features/payments.md) §Refund Path).
+
+### `resolve_purchase_bundle` — settlement bundle
+
+- **Pre-validasi semua item SEBELUM transfer pertama** (INV-025): ownership + approval + simulasi `Σroyalti(basis ronde 16) + fee ≤ price` — gagal → abort bersih, **nol transfer**, refund penuh (deposit otomatis via rollback tx).
+- Basis royalti per token (DECIDED ronde 16 — SSOT [features/payments.md](../features/payments.md) §Algoritma Merge): 1) harga listing aktif (state market lokal); 2) harga mint fase (`mint_price_of` XCC ke koleksi — [nft-collection.md](./nft-collection.md) §5); 3) sisa harga bundle dibagi rata (floor). `royalti_token = rate × basis` — rate dari `royalty_config()` koleksi.
+- Loop `nft_transfer_payout` per token (≤10) → payout per token **di-merge per receiver** (tanpa cap agregat, INV-027) → fee dipotong sekali → residual → seller.
+- Kegagalan residual mid-loop (NEAR tidak punya rollback lintas-receipt — FACT): status bundle → `PARTIAL`, dana belum terpakai di-refund, event `market_bundle_partial`, kompensasi G7 ([order-protocol-security.md](../security/order-protocol-security.md) §6; INV-025). Buyer tidak pernah kehilangan dana tanpa kompensasi tercatat.
+- Pola eksekusi (chaining callback per langkah vs promise aggregate): **PROPOSED** — dipilih saat implementasi; nama method & jaminan di atas tetap kanonik.
+
+### Event sukses bundle
+
+`buy_bundle` sukses = `market_sale` per token (skema per-token [webhooks.md](../api/webhooks.md)). Nilai `price_yocto` per token pada event bundle **⏳ open-by-design** — usulan: basis royalti token ronde 16 bila terdefinisi, selain itu pembagian rata harga bundle (floor). Nama event khusus bundle-sukses belum ada di daftar kanonik (ronde 16 hanya menambah `market_bundle_create`/`cancel`/`partial`).
+
+---
+
+## 3a. Stale — dua kasus (perbaikan H4, ronde 17b)
+
+> **Temuan H4 (review ronde 17):** definisi stale lama hanya mencakup **ownership mismatch**. Seller yang
+> mencabut approval **tanpa memindahkan token** menghasilkan listing yang tampil di discovery tapi
+> **selalu gagal dibeli**, dan `remove_stale_listing` tidak bisa membersihkannya (ownership cocok) →
+> listing "zombie" permanen.
+
+**Definisi kanonik stale (dua kasus, keduanya wajib didukung):**
+
+```text
+stale(sale) :=  (A) nft_token(token_id).owner_id != sale.owner_id      -- token dipindah di luar market
+             ∨  (B) !nft_is_approved(sale.owner_id, market, approval_id) -- approval dicabut/kedaluwarsa
+```
+
+- **(A) ownership mismatch** — kasus lama; token dipindah/dijual di tempat lain.
+- **(B) approval tidak valid** — kasus baru; seller memanggil `nft_revoke`, atau approval_id invalid
+  setelah transfer (FACT NEP-178).
+
+**Konsekuensi implementasi:**
+- `buy` menolak kedua kasus dengan `CONFLICT_STALE` (bukan `CHAIN_REVERT` generik).
+- `remove_stale_listing` **wajib** membuktikan salah satu kasus via XCC (`nft_token` + `nft_is_approved`);
+  permissionless, pemanggil menanggung gas. Tidak percaya klaim pemanggil.
+- Discovery: `is_stale` di FE harus mengecek **kedua** kasus (dua view call), bukan hanya ownership.
+- Test: TC-053 (stale karena approval dicabut) + TC-006 (stale karena ownership) — keduanya wajib.
+
+---
+
+## 3b. Pemulihan dana nyangkut (perbaikan C3, ronde 17b)
+
+> **Temuan C3 (review ronde 17):** `resolve_purchase` adalah **receipt terpisah**. Bila callback-nya
+> gagal (gas habis, panic), `buy` **tidak** revert; `Sale` sudah dihapus optimistic; deposit tertahan di
+> kontrak; dan **tidak ada method recovery publik** → dana buyer hanya bisa dipulihkan lewat upgrade
+> governance. Itu kehilangan dana dengan pemulihan yang bergantung pada tim.
+
+**Mekanisme `pending_purchases` (wajib di M1):**
+
+```rust
+// state baru (prefix: PendingPurchases)
+struct PendingPurchase {
+    buyer: AccountId,
+    deposit: u128,          // attached deposit saat buy
+    created_height: u64,    // env::block_height() saat buy
+}
+// LookupMap<SaleKey, PendingPurchase>
+```
+
+```text
+buy(sale_key):
+  1. assert pending_purchases[sale_key] TIDAK ada          -- cegah tumpang tindih
+  2. tulis pending_purchases[sale_key] = {buyer, deposit, created_height}
+  3. hapus Sale (optimistic removal)
+  4. XCC nft_transfer_payout → callback resolve_purchase
+
+resolve_purchase (callback, #[private]):
+  - SUKSES → distribusi → HAPUS pending_purchases[sale_key]
+  - GAGAL   → restore Sale + refund buyer → HAPUS pending_purchases[sale_key]
+
+recover_stuck_purchase(sale_key):        -- permissionless, siapa pun
+  assert pending_purchases[sale_key] ada
+  assert env::block_height() > pending.created_height + RECOVERY_DELAY_BLOCKS   -- callback pasti selesai/gagal
+  → restore Sale (bila token masih milik sale.owner_id) + refund penuh ke pending.buyer
+  → hapus pending_purchases[sale_key]; emit market_purchase_recovered
+```
+
+**Jaminan (INV-031):** setiap deposit yang masuk ke `buy` **selalu** punya jalur keluar —
+`resolve_purchase` (sukses/gagal) **atau** `recover_stuck_purchase` (permissionless, tanpa syarat
+kepercayaan pada tim). Tidak ada dana yang bergantung pada governance untuk kembali.
+
+**Parameter:**
+- `RECOVERY_DELAY_BLOCKS` = **PROPOSED** (usulan 20 blok ≈ 20 detik; cukup agar callback pasti selesai,
+  cukup pendek agar buyer tidak menunggu lama). Diukur/dikonfirmasi saat implementasi.
+- `resolve_purchase` gas budget **wajib diverifikasi** terhadap worst case (10 payout + fee + seller +
+  refund + event) — bila 115 Tgas tidak cukup, naikkan dan dokumentasikan (temuan C3 bagian gas).
+
+**Berlaku juga untuk `buy_bundle`** (saat bundle dikerjakan di M1+): satu entri pending per bundle,
+dipulihkan dengan pola yang sama.
+
+---
+
+## 4. Owner / guardian (bukan order)
+
+| Method | Signature | Auth | Checks | Event |
+|---|---|---|---|---|
+| `withdraw_fees` | `withdraw_fees()` | owner (MVP) / DAO (mainnet) | hanya dana **fee**, bukan escrow (INV-005/014) | `treasury_withdraw` |
+| `update_fee_bps` | `update_fee_bps(fee_bps: u16)` | owner → mainnet: DAO 2-of-3 + timelock | `fee_bps ≤ MAX_FEE_BPS` (INV-004 — upgrade pun tak bisa menaikkan cap) | `fee_update` |
+| `update_treasury` | `update_treasury(treasury: AccountId)` | owner → mainnet: DAO | — | `treasury_update` |
+| `pause` | `pause()` | owner (MVP) / **guardian `pause_callers`** (mainnet — terpisah dari owner-DAO, ADR-013) | — | `market_pause` |
+| `unpause` | `unpause()` | owner (MVP) / **hanya** owner-DAO (guardian tidak boleh — mencegah penyanderaan, ADR-013) | — | `market_unpause` |
+| `storage_deposit` | `storage_deposit(account_id: Option<AccountId>, registration_only: Option<bool>)` | pemanggil (atau utk `account_id`) | NEP-145 | — |
+| `storage_withdraw` | `storage_withdraw(amount: Option<U128>)` | pemilik saldo | NEP-145; **tetap diizinkan saat paused** (INV-022) | — |
+
+- **Pausable (INV-022)**: `paused` memblokir SEMUA mutasi baru KECUALI jalur pengembalian aset/refund: `cancel_offer`, `cancel_bundle`, `remove_sale`, `remove_stale_listing`, `storage_withdraw` (TC-012).
+- Governance gating MVP→mainnet: aksi finansial/upgrade = Sputnik DAO V2 council 2-of-3 + timelock 24 jam; pause tetap single-key guardian ([ADR-013](../decisions/ADR-013-key-management.md), SEC-CONTRACT-012; `pause_callers` = `UnorderedSet` di state, di-set saat deploy — PROPOSED mekanisme penambahannya owner-only).
+- Owner bukan role on-chain tambahan lain — moderasi TIDAK pernah on-chain ([smart-contract-security-architecture.md](../security/smart-contract-security-architecture.md) §3).
+
+---
+
+## 5. Views (return shape eksplisit)
+
+View call = read-only via RPC, tidak biaya gas user; FE MVP baca langsung + filter client-side ([features/marketplace.md](../features/marketplace.md) §Discovery; [ADR-004](../decisions/ADR-004-mvp-data-layer.md)). Nilai Ⓝ = **string yoctoNEAR (u128)**; waktu = u64 nanodetik.
+
+| View | Signature |
+|---|---|
+| `get_sale` | `get_sale(nft_contract_id: AccountId, token_id: String) -> Option<Sale>` |
+| `get_sales` | `get_sales(offset: Option<u64>, limit: Option<u8>) -> Vec<Sale>` |
+| `get_supply_sales` | `get_supply_sales() -> u64` |
+| `get_offer` | `get_offer(nft_contract_id: AccountId, token_id: String, buyer_id: AccountId) -> Option<Offer>` |
+| `get_offers` | `get_offers(offset: Option<u64>, limit: Option<u8>) -> Vec<Offer>` |
+| `get_supply_offers` | `get_supply_offers() -> u64` |
+| `get_offers_for_token` | `get_offers_for_token(nft_contract_id: AccountId, token_id: String, offset: Option<u64>, limit: Option<u8>) -> Vec<Offer>` |
+| `get_offers_by_account` | `get_offers_by_account(account_id: AccountId, offset: Option<u64>, limit: Option<u8>) -> Vec<Offer>` |
+| `get_bundle` | `get_bundle(bundle_id: u64) -> Option<Bundle>` |
+| `get_bundles` | `get_bundles(offset: Option<u64>, limit: Option<u8>) -> Vec<Bundle>` |
+| `get_supply_bundles` | `get_supply_bundles() -> u64` |
+| `is_stale` | `is_stale(nft_contract_id: AccountId, token_id: String, current_owner: AccountId) -> bool` |
+| `storage_minimum_balance` / `storage_balance_of` | NEP-145 standar |
+| `contract_source_metadata` | NEP-330 (reproducible build) |
+
+```json
+// Sale (get_sale / get_sales[].entry exists ⇔ listing aktif)
+{
+  "nft_contract_id": "nft.example.testnet",
+  "token_id": "42",
+  "owner_id": "alice.testnet",
+  "approval_id": 7,
+  "price_yocto": "1000000000000000000000000",
+  "allowed_buyer": null,
+  "listed_at": 1799016000000000000
+}
+```
+
+```json
+// Offer (get_offer / get_offers[].escrow tersimpan di saldo kontrak — INV-006 exact)
+{
+  "nft_contract_id": "nft.example.testnet",
+  "token_id": "42",
+  "buyer_id": "bob.testnet",
+  "amount_yocto": "900000000000000000000000",
+  "expires_at": 1799016000000000000,
+  "created_at": 1798411200000000000
+}
+```
+
+```json
+// Bundle (get_bundle / get_bundles[] — satu harga utk semua item, INV-028)
+{
+  "bundle_id": 7,
+  "seller": "alice.testnet",
+  "price_yocto": "3000000000000000000000000",
+  "status": "ACTIVE",
+  "created_at": 1798411200000000000,
+  "items": [
+    { "nft_contract_id": "nft.example.testnet", "token_id": "42", "approval_id": 11 },
+    { "nft_contract_id": "nft.example.testnet", "token_id": "43", "approval_id": 12 }
+  ]
+}
+```
+
+Semantik status & staleness:
+
+- `Sale` **tanpa field status** — entry ada ⇔ ACTIVE; hilang ⇔ SOLD/delisted (optimistic removal, INV-009); `allowed_buyer ≠ null` = private listing (disembunyikan dari grid publik).
+- `Bundle.status`: `ACTIVE` / `SOLD` / `CANCELLED` / `PARTIAL` (residual failure — §3).
+- `is_stale` menerima `current_owner` sebagai argumen karena **view call tidak bisa cross-contract** (FACT) — FE/indexer membaca `nft_token().owner_id` dari koleksi lalu membandingkan di sini; otoritas keputusan stale tetap on-chain saat `buy`/`accept_offer` (INV-016) dan `remove_stale_listing` membuktikan mismatch sendiri.
+- **Tidak ada view launchpad di market** — state launchpad hidup di kontrak koleksi; `get_launchpad` = view koleksi ([nft-collection.md](./nft-collection.md) §5). Intent `get_launchpad?` di [features/marketplace.md](../features/marketplace.md) §Contract API dimiliki kontrak koleksi, bukan market (XCC mustahil di view).
+- `get_offers_by_account` = scan + filter atas `offers` (MVP tanpa index per-akun); index `offers_by_account` = ⏳ fase 2 (indexer — [ADR-015](../decisions/ADR-015-indexer-consistency.md)); `limit` di-clamp (bukan error) — pola [features/marketplace.md](../features/marketplace.md) §Discovery.
+- `storage_minimum_balance()` = hasil `storage_usage` aktual saat implementasi — nominal per-entry **⏳ open-by-design** (OQ-007; angka 0.01 Ⓝ dari tutorial BUKAN keputusan NearSea — [RESEARCH.md](../../RESEARCH.md) §10.3).
+
+---
+
+## 6. Konstanta bernama
+
+```rust
+// Gas (Tgas)
+pub const GAS_FOR_RESOLVE_PURCHASE: Gas = Gas::from_tgas(115); // FACT — callback settle (RESEARCH.md §10.2)
+pub const GAS_FOR_NFT_TRANSFER: Gas    = Gas::from_tgas(15);   // FACT — nft_transfer_payout (1 yocto attach)
+pub const GAS_FOR_DUAL_VERIFY: Gas     = /* PROPOSED — diukur; budget 2 view call + callback listing (total ≈10–20 Tgas) */;
+pub const NO_DEPOSIT: Balance = 0;
+
+// Ekonomi (bps & yoctoNEAR — string u128 di JSON)
+pub const MAX_FEE_BPS: u16          = 500;   // immutable cap — INV-004 (ubah hanya via upgrade lolos governance)
+pub const FEE_BPS_DEFAULT: u16      = 200;   // 2%
+pub const MIN_PRICE_YOCTO: u128     = 10_000_000_000_000_000_000_000; // 0.01 Ⓝ = 10^22 yocto (INV-030)
+
+// Batas statis (INV-021)
+pub const MAX_PAYOUT_RECEIVERS: u32 = 10;   // penerima payout setelah merge (batas gas NEP-199/300 Tgas)
+pub const MAX_BUNDLE_TOKENS: u32    = 10;   // item per bundle
+
+// Waktu (nanodetik — selaras env::block_timestamp())
+pub const DEFAULT_OFFER_DURATION_NS: u64 = 7 * 24 * 60 * 60 * 1_000_000_000; // 604_800_000_000_000 ns = 7 hari
+```
+
+| Konstanta | Nilai | Status |
+|---|---|---|
+| `GAS_FOR_RESOLVE_PURCHASE` | 115 Tgas | ✅ FACT |
+| `GAS_FOR_NFT_TRANSFER` | 15 Tgas | ✅ FACT |
+| `GAS_FOR_DUAL_VERIFY` | PROPOSED (usulan 15–20 Tgas utk 2 promise + callback; sisa jadi budget write) | ⏳ PROPOSED |
+| `MAX_FEE_BPS` | 500 | ✅ DECIDED (INV-004) |
+| `FEE_BPS_DEFAULT` | 200 (2%) | ✅ DECIDED (ADR-005) |
+| `MIN_PRICE_YOCTO` | `10000000000000000000000` (0.01 Ⓝ) | ✅ DECIDED (INV-030; edge table [features/marketplace.md](../features/marketplace.md)) |
+| `DEFAULT_OFFER_DURATION_NS` | 604_800_000_000_000 (7 hari) | ✅ DECIDED (ronde 4/6) |
+| `MAX_PAYOUT_RECEIVERS` | 10 | ✅ DECIDED (INV-003/021) |
+| `MAX_BUNDLE_TOKENS` | 10 | ✅ DECIDED (ronde 6) |
+| Total gas per tx | maks 300 Tgas (FACT); `buy` < 150 PROPOSED | ✅ FACT / PROPOSED |
+
+---
+
+## 7. Storage-key prefix design (SEC-CONTRACT-008)
+
+```rust
+#[derive(BorshStorageKey)]
+pub enum StorageKey {
+    Sales,            // UnorderedMap<SaleKey, Sale>;  SaleKey  = (AccountId, String)
+                      //   ⇔ satu token tidak bisa punya 2 listing aktif (INV-007)
+    Offers,           // UnorderedMap<OfferKey, Offer>; OfferKey = (AccountId, String, AccountId)
+                      //   (nft_contract_id, token_id, buyer_id) ⇔ 1 offer aktif /buyer/token (INV-024)
+    Bundles,          // UnorderedMap<u64, Bundle>     (key = bundle_id)
+    BundleItems,      // UnorderedMap<u64, Vec<BundleItem>>  (≤ MAX_BUNDLE_TOKENS per bundle)
+                      //   PROPOSED: Vec di nilai map (contract-arch §13 menulis Vector<BundleItem>;
+                      //   ≤10 item = satu Vec cukup — final saat implementasi)
+    StorageDeposits,  // LookupMap<AccountId, u128> (NEP-145 — user bayar storage, INV-020)
+    Paused,           // flag bool (kunci eksplisit agar layout stabil & ter-audit per release)
+    PauseCallers,     // UnorderedSet<AccountId> (guardian mainnet — ADR-013; kosong di MVP testnet)
+    BundleCounter,    // u64 next_bundle_id (counter — get_supply_bundles turunannya)
+}
+```
+
+- `config` (`owner_id`, `treasury`, `fee_bps`) = **field struct biasa di root state** (bukan persistent collection — tidak butuh prefix) — ikut didokumentasikan per release.
+- Layout = **PROPOSED** (ditetapkan saat implementasi; kunci & urutan enum stabil) — [smart-contract-security-architecture.md](../security/smart-contract-security-architecture.md) §13; versi layout dipublikasikan tiap release (SEC-CONTRACT-008), migrate via `#[init(ignore_state)]` (§1).
+- Semua map yang tumbuh dibayar user via NEP-145: entry `Sale`, `Offer`, `Bundle`+membership (INV-020); deposit tidak otomatis kembali saat refund/cancel — ditarik via `storage_withdraw` (anti gas-DoS — [features/marketplace.md](../features/marketplace.md) §Storage Deposit).
+
+---
+
+## 8. Pemetaan assert → kode user (ringkas)
+
+Registry = [error-handling.md](../development/error-handling.md) §3; pemetaan FE berdasar **tipe error** ([§4](../development/error-handling.md)) — tabel ini = peta kasus per method (padanan contract-arch §15).
+
+| Kondisi on-chain (assert) | Kode user | Method |
+|---|---|---|
+| Sale tidak ada / sudah dihapus (optimistic removal) | `CONFLICT_SOLD` | `buy`, `accept_offer` |
+| `attached < price` / `≠ price` (exact) | `CHAIN_INSUFFICIENT_DEPOSIT` | `buy`, `buy_bundle`, `make_offer` |
+| Pemanggil = seller / owner token | `FORBIDDEN_SELF_BUY` | `buy`, `buy_bundle`, `make_offer` |
+| Ownership mismatch (stale) | `CONFLICT_STALE` | `buy`, `accept_offer`, `buy_bundle` |
+| Private listing, buyer ≠ `allowed_buyer` | `FORBIDDEN_BUYER` | `buy` |
+| Offer aktif sudah ada (buyer/token) | `CONFLICT_OFFER_EXISTS` | `make_offer` |
+| Harga < 0.01 Ⓝ | `INVALID_PRICE` | `list_nft_for_sale`, `update_price`, `make_offer`, `create_bundle` |
+| Duplikat listing aktif | `CONFLICT_ALREADY_LISTED` | `list_nft_for_sale` |
+| Item sudah di bundle aktif lain / token bundle di-list terpisah | `CONFLICT_BUNDLE_ITEM_INVALID` | `create_bundle`, `list_nft_for_sale`, `make_offer` |
+| Bundle > `MAX_BUNDLE_TOKENS` | `CONFLICT_BUNDLE_TOO_MANY` | `create_bundle` |
+| Pre-validasi bundle gagal (item/payout/Σroyalti+fee > harga) | `CONFLICT_PRE_VALIDATE_FAILED` | `create_bundle`, `buy_bundle` |
+| Payout invalid struktur (>10 receiver, Σ > harga−fee, sisa >1 yocto) | `CHAIN_REVERT` | `resolve_purchase`, `resolve_purchase_bundle` |
+| Royalti per token > 10% | `INVALID_ROYALTY` | resolve paths (map [error-handling.md](../development/error-handling.md) §4) |
+| Receiver unik hasil merge > 10 | `CHAIN_REVERT` (kandidat kode khusus — wajib didaftarkan dulu di registry §3 bila FE butuh) | `create_bundle` |
+| Kontrak paused, mutasi baru | `CHAIN_PAUSED` | semua mutasi kecuali daftar INV-022 |
+| `assert_one_yocto` gagal / auth gagal / bundle_id tidak ada | `CHAIN_REVERT` / `NOT_FOUND_BUNDLE` | umum |
+| Harga berubah antar preview & sign (kelebihan deposit di-refund via resolve) | `CONFLICT_PRICE_CHANGED` (preview FE — bukan assert) | `buy` |
+
+- Refund selalu ke penerima hardcoded dari state (`buyer_id`) — tidak ada transfer ke alamat arbitrer (INV-014). Refund tidak terhalang paused (INV-022).
+- Dust ≤1 yocto = toleransi pembulatan, tidak di-refund terpisah ([features/payments.md](../features/payments.md) §Presisi).
+
+## Catatan review desain (ronde 17) — temuan belum tertutup
+
+> Review kritis desain (3 agent, 2026-10-07) menemukan 7 kelemahan nyata. **Status pasca-keputusan
+> ADR-016** (M1 = vertical slice, bundle ditunda ke M1+): tiga yang kritis **tertunda bersama bundle**;
+> yang lain punya jalur penyelesaian. **Tidak ada yang boleh dianggap selesai sebelum diperbaiki** —
+> dokumen ini mencatatnya supaya tidak hilang.
+
+| # | Temuan | Sev | Status pasca-cut |
+|---|---|---|---|
+| **C1** | **`PARTIAL` tanpa alokasi kerugian.** Untuk bundle satu harga, "dana belum terpakai di-refund" **tidak terdefinisi** (pro-rata? penuh? nol?). Yang paling mungkin = buyer dapat refund penuh sambil menyimpan k NFT → **seller kehilangan NFT tanpa dibayar**. Ditambah: fund G7 (0.1% × fee 2% = **0.002% volume**) **tidak punya jalur pendanaan** di algoritma payout mana pun, dan `PARTIAL` **tidak punya method keluar** (tidak ada `sweep`/`finalize`). | **Kritis** | **Tertunda** — bundle = TASK-010 (M1+). Wajib diperbaiki sebelum TASK-010. |
+| **C2** | **Gas `buy_bundle` melebihi 300 Tgas.** Angka desain sendiri: 10×15 + 115 = 265, sisa **35 Tgas** — padahal pre-validasi INV-025 butuh ownership + approval + simulasi payout **per item** (~3–4 XCC × 10 ≈ 90–150 Tgas) dari pohon gas yang sama. Estimasi total **355–430 Tgas** → bundle 10 token **tidak bisa dibeli**. | **Kritis** | **Tertunda** (M1+). Wajib **diukur di sandbox** + turunkan `MAX_BUNDLE_TOKENS` atau pecah settlement. |
+| **C3** | **Dana buyer bisa nyangkut.** `resolve_purchase` receipt terpisah; bila callback-nya gagal, `buy` **tidak** revert, Sale sudah dihapus optimistic, deposit tertahan di kontrak, dan **tidak ada method recovery** publik (hanya `withdraw_fees` owner + `storage_withdraw`). | **Kritis** | ✅ **SELESAI (ronde 17b)** — §3b: `pending_purchases` + `recover_stuck_purchase` permissionless + INV-031 + TC-054. |
+| **H1** | **Payout pihak ketiga divalidasi setelah NFT pindah.** `nft_transfer_payout` memindahkan NFT **dan** mengembalikan payout dalam panggilan yang sama → payout invalid = NFT sudah di buyer, buyer di-refund, **seller kehilangan NFT**. | **Tinggi** | **Dimatikan di M1** — slice hanya menerima koleksi NearSea (view royalty tersedia). Untuk membuka koleksi pihak ketiga (M1+), butuh desain baru. |
+| **H2** | **`accept_offer` loop tak terbatas.** Auto-cancel + refund **semua** offer lain di token; jumlah offer tidak dibatasi → penyerang bisa menaruh ratusan offer murah sehingga `accept_offer` kehabisan gas (griefing) + escrow nyangkut. INV-021 mengklaim "semua loop terbatas statis" — loop ini tidak. | **Tinggi** | **Tertunda** — offers = TASK-009 (M1+). Perlu batas statis atau batalkan per-offer saat cancel. |
+| **H3** | **Wiring factory tidak menutup storage + `new()` salah argumen.** `args_init` didokumentasikan memuat `phases`, tapi `CollectionContract::new()` **tidak punya parameter `phases`** (dan `phases` juga dikirim via `set_phases` terpisah). `.transfer()` hanya menutup `cost_account + cost_code`, sementara `set_phases`/`allowlist_add` dipanggil dengan **deposit 0** padahal butuh bayar storage. | **Tinggi** | **Tidak relevan di M1** (factory tidak dipakai). Wajib diperbaiki sebelum TASK-012/020. |
+| **H4** | **Listing "zombie".** Stale hanya dicek dari **ownership**; seller yang mencabut approval (tanpa pindah token) menghasilkan listing yang tampil di discovery tapi **selalu gagal dibeli**, dan `remove_stale_listing` tidak bisa membersihkannya (ownership cocok). | **Tinggi** | ✅ **SELESAI (ronde 17b)** — §3a: definisi stale dua kasus + TC-053. |
+
+**Temuan Medium** (dicatat, tidak memblokir): M1 private listing bukan rahasia (hanya access control — harga & target buyer publik on-chain); M2 allowlist tanpa `remove` + tanpa cap total + reuse phase-index; M3 stale menumpuk tanpa insentif pembersihan; M4 spam listing murah tanpa rate limit; M5 `accept_offer` tidak menghapus entry `Sale`; M6 basis royalti bundle rule-1 praktis mati (INV-028 melarang item bundle di-list terpisah); M7 akuntansi solvensi `withdraw_fees` tidak dispesifikasi (fee vs escrow vs storage dalam satu saldo).
+
+## Status
+
+- Signature, konstanta, layout prefix, callback validation, return shape view — **di-pertanggung-jawabkan dokumen ini** (reference implementasi, ronde 16).
+- Behavior/settlement (alur, kapan refund, merge, partial, lazy sweep) = SSOT [features/marketplace.md](../features/marketplace.md) + [features/payments.md](../features/payments.md) — di sini hanya dirujuk, tidak dinyatakan ulang.
+- Invariant relevan: INV-001..003, INV-004, INV-005/006, INV-007..011, INV-013, INV-016, INV-020..028, INV-030, INV-031; requirement SEC-CONTRACT-001..005, 007, 008, 010, 011, 012.

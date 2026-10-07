@@ -1,0 +1,46 @@
+# =============================================================================
+# Deploy — DEV (branch `dev`, staging)
+# SKELETON. Deploy otomatis ke environment staging/dev.
+# Aturan branch & promosi: docs/development/git-workflow.md
+# =============================================================================
+
+name: Deploy (dev)
+
+on:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy staging (dev)
+    runs-on: ubuntu-latest
+    # Environment GitHub "dev" — tidak butuh approval.
+    environment:
+      name: dev
+      url: ${{ vars.DEV_APP_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup SSH deploy key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ vars.DEV_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Deploy via SSH (docker compose pull/up)
+        run: |
+          ssh -i ~/.ssh/deploy_key "${{ vars.DEV_SSH_USER }}@${{ vars.DEV_HOST }}" \
+            "cd ${{ vars.DEV_APP_DIR }} && docker compose pull && docker compose up -d"
+
+      - name: Smoke test
+        run: |
+          curl -fsS "${{ vars.DEV_APP_URL }}/api/health" || exit 1

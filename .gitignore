@@ -1,0 +1,138 @@
+# =============================================================================
+# NearSea — .gitignore (KETAT)
+# Aturan emas (AGENTS.md + docs/development/secrets-and-gitignore.md):
+#   Sebelum membuat file baru, cek isinya. Jika sensitif → tambahkan pola ignore
+#   DULU ke file ini, baru isi filenya. Tidak ada secret yang boleh masuk git.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# SECRETS — jangan pernah di-commit (SEC-KEY-001, SEC-CICD-001)
+# -----------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.env
+.envrc
+
+# Kunci privat / kredensial NEAR
+*.pem
+*.key
+*.p8
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+id_ecdsa
+near-credentials/
+.near-keys/
+.near/
+neardev/
+*.seed
+seed.txt
+seed-phrase*
+
+# Kredensial cloud / CI / SSH
+.ssh/
+*.ppk
+credentials.json
+service-account*.json
+gcloud-key*.json
+aws-credentials*
+.aws/
+.npmrc
+.pypirc
+.netrc
+
+# Database dump / backup (bisa memuat data sensitif)
+# CATATAN: file migration Prisma (.sql) DIKECUALIKAN di bawah — itu bagian kode, bukan dump.
+*.sql
+*.sql.gz
+*.dump
+pg_dump*
+*.bak
+backup/
+backups/
+!**/prisma/migrations/**/*.sql
+!**/migrations/**/*.sql
+
+# Log (bisa memuat token/PII)
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# -----------------------------------------------------------------------------
+# RUST (kontrak) — target/ besar & reproducible
+# -----------------------------------------------------------------------------
+target/
+**/target/
+*.wasm
+!**/res/*.wasm
+Cargo.lock.bak
+
+# -----------------------------------------------------------------------------
+# NODE / FRONTEND
+# -----------------------------------------------------------------------------
+node_modules/
+**/node_modules/
+.pnpm-store/
+.pnpm-debug.log
+.yarn/cache/
+.yarn/install-state.gz
+dist/
+build/
+.next/
+out/
+.turbo/
+coverage/
+*.tsbuildinfo
+.vite/
+
+# -----------------------------------------------------------------------------
+# PYTHON (tooling/script bila ada)
+# -----------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+
+# -----------------------------------------------------------------------------
+# OS / EDITOR
+# -----------------------------------------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*.swo
+*~
+.idea/
+.vscode/*
+!.vscode/settings.json.example
+!.vscode/extensions.json
+
+# -----------------------------------------------------------------------------
+# DOCKER / INFRA lokal
+# -----------------------------------------------------------------------------
+docker-compose.override.yml
+*.pid
+*.sock
+postgres-data/
+pgdata/
+
+# -----------------------------------------------------------------------------
+# TOOLING LOKAL (bukan bagian proyek)
+# -----------------------------------------------------------------------------
+.mimosa/
+.zcode/
+.zcodeignore
+
+# DITINJAU, SENGAJA TIDAK DI-IGNORE — `.scratch/`
+#   Berisi tiket/spec kerja per-fitur (tracker markdown lokal; docs/agents/issue-tracker.md).
+#   Sudah dicek: tidak memuat kredensial/secret → tidak perlu di-ignore atas alasan keamanan.
+#   Ikut di-commit agar tracker bisa dibaca ulang & di-review.
+#   ATURAN: `.scratch/` = state kerja turunan. Kesimpulan yang mengikat WAJIB dipromosikan
+#   ke `tasks/backlog.md` / `docs/features/*` / `docs/decisions/ADR-*` (aturan SSOT, AGENTS.md).

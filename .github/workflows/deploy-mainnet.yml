@@ -1,0 +1,75 @@
+# =============================================================================
+# Deploy — MAINNET (branch `mainnet`) — PALING TERPROTEKSI
+# SKELETON. Manual-trigger SAJA (tidak ada auto-deploy dari push).
+# WAJIB: approval environment (reviewer), gate audit eksternal (TASK-027),
+# verifikasi reproducible build NEP-330, dan ownership kontrak = Sputnik DAO.
+# Aturan: docs/development/git-workflow.md + docs/development/ci-cd.md
+# =============================================================================
+
+name: Deploy (mainnet)
+
+on:
+  # HANYA manual. Tidak ada trigger push — sengaja.
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Ketik "DEPLOY-MAINNET" untuk konfirmasi'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-mainnet
+  cancel-in-progress: false
+
+jobs:
+  guard:
+    name: Guard — konfirmasi & gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cek konfirmasi manual
+        run: |
+          if [ "${{ github.event.inputs.confirm }}" != "DEPLOY-MAINNET" ]; then
+            echo "Konfirmasi salah — deploy mainnet dibatalkan."; exit 1
+          fi
+
+      - name: Cek checklist mainnet
+        run: |
+          echo "Prasyarat WAJIB sebelum lanjut (docs/deployment/deployment.md):"
+          echo " - Audit eksternal lulus (TASK-027)"
+          echo " - Reproducible build terverifikasi (NEP-330 / SEC-CONTRACT-006)"
+          echo " - Owner kontrak = Sputnik DAO V2 council 2-of-3 (ADR-013)"
+          echo " - Persetujuan eksplisit user (AGENTS.md)"
+          # Gate otomatis (mis. cek file bukti audit) diisi saat Fase 5.
+
+  deploy:
+    name: Deploy mainnet
+    needs: guard
+    runs-on: ubuntu-latest
+    # Environment "mainnet" WAJIB punya required reviewers di GitHub.
+    environment:
+      name: mainnet
+      url: ${{ vars.MAINNET_APP_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup SSH deploy key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ vars.MAINNET_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Deploy via SSH
+        run: |
+          ssh -i ~/.ssh/deploy_key "${{ vars.MAINNET_SSH_USER }}@${{ vars.MAINNET_HOST }}" \
+            "cd ${{ vars.MAINNET_APP_DIR }} && docker compose pull && docker compose up -d"
+
+      - name: Verify reproducible build + code hash (SEC-CONTRACT-006)
+        run: |
+          echo "TODO(scaffold): verifikasi contract_source_metadata == artifact CI sebelum dianggap sukses"
+
+      - name: Smoke test
+        run: curl -fsS "${{ vars.MAINNET_APP_URL }}/api/health" || exit 1

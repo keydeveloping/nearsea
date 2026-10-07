@@ -1,0 +1,165 @@
+# Tech Stack
+
+> Keputusan teknologi FINAL per kategori. Agent wajib mengikuti ini, tidak boleh memilih sendiri.
+
+## Smart Contract
+
+| Kategori | Pilihan | Status |
+|---|---|---|
+| Bahasa | Rust | ✅ Accepted (riset) |
+| Framework | near-sdk + near-sdk-contract-tools | ✅ Accepted (riset) |
+| Standar | NEP-171/177/178/181/199/297 | ✅ fix (riset + verifikasi ulang) |
+| Safety & fee | **Pausable** (blokir mutasi, izinkan cancel/withdraw); fee default **`fee_bps = 200` (2%)** dengan **cap immutable `MAX_FEE_BPS = 500` (5%)** — cap ≠ nilai fee | ✅ Accepted (ronde 13 + audit) |
+| Verifikasi build | Reproducible build **NEP-330** (contract_source_metadata) | ✅ Accepted (audit) |
+| Auth API | **NEP-413 utama** + custom challenge fallback | ✅ Accepted (ADR-011) |
+| Testing | near-workspaces (sandbox, deploy NFT+market bersama) + cargo test | ✅ default riset |
+| Build tool | cargo-near | ✅ draft |
+
+## Frontend — DIPUTUSKAN (ronde 2, 2026-10-01)
+
+| Kategori | Pilihan | Status |
+|---|---|---|
+| Framework | **Next.js (App Router)** | ✅ Accepted |
+| Language | **TypeScript** (strict, tanpa `any` tanpa alasan) | ✅ Accepted |
+| Styling | **Tailwind CSS** | ✅ Accepted |
+| UI language | English copy terpusat, siap i18n | ✅ Accepted |
+| Tema visual | Custom branding — sesi desain terpisah (TASK-008b) → Tailwind theme | ⏳ open-by-design (sebelum Fase 2) |
+| Server state | **TanStack Query** | ✅ Accepted (ronde 5) |
+| Global client state | **Zustand** | ✅ Accepted (ronde 5) |
+| Wallet | near-connect (+ hooks resminya) | ✅ Accepted (ronde 5) |
+| RPC client | near-api-js / @near-js/* | ✅ default riset |
+
+## Backend / Indexer — DIPUTUSKAN (ronde 2 + audit)
+
+| Kategori | Pilihan | Status |
+|---|---|---|
+| Backend MVP | **Next.js API routes + PostgreSQL di VPS** (report/profil/auth/admin) | ✅ Accepted (ronde 5) |
+| Sumber data read MVP | View call RPC langsung + NearBlocks API untuk riwayat | ✅ Accepted |
+| Custom indexer (trait search, floor, volume) | Fase 2 — **ingestion via Neardata** (NEAR Lake DEPRECATED — dilarang) + PostgreSQL | ✅ Accepted (ditunda) |
+| Migration | Prisma migrate | ✅ Accepted (ronde 13) |
+| Cache | Menunggu fase 2 (indexer) | — |
+
+## Infra — DIPUTUSKAN (ronde 5): self-hosted VPS
+
+| Kategori | Pilihan | Status |
+|---|---|---|
+| Hosting FE | **VPS sendiri** — Next.js self-hosted, reverse proxy + SSL | ✅ Accepted (ronde 5) |
+| Hosting BE/report API | **VPS yang sama** (bukan serverless — API route Next.js atau service kecil) | ✅ Accepted (ronde 5) |
+| DB report/verified | **PostgreSQL di VPS** — engine sama dengan indexer fase 2 | ✅ Accepted (ronde 5) |
+| IPFS pinning | ⏳ open-by-design — diputuskan saat mulai fitur mint (ronde 5) | ⏳ open-by-design |
+| SSL/domain | Let's Encrypt via Caddy/nginx — detail di [deployment.md](../deployment/deployment.md) | ✅ Accepted |
+
+---
+
+## Version pins
+
+> **Aturan**: semua pin bertanda **"final saat scaffold"** — versi di bawah adalah target/rujukan riset, dikunci saat TASK-001 (scaffold) dan dicatat di lockfile/manifest. Jangan mengarang versi final sebelum scaffold.
+
+| Komponen | Target/rujukan | Pin final | Catatan |
+|---|---|---|---|
+| Node.js | LTS terbaru saat scaffold | final saat scaffold | Runtime Next.js |
+| Next.js | App Router (versi terbaru saat scaffold) | final saat scaffold | ADR tidak mematok nomor |
+| TypeScript | strict mode | final saat scaffold | Tanpa `any` tanpa alasan |
+| Tailwind CSS | v3/v4 sesuai scaffold | final saat scaffold | Theme dari sesi branding (TASK-008b) |
+| Rust edition | 2021 (minimum) | final saat scaffold | — |
+| Rust toolchain | rustc 1.77.1 (rujukan riset) | final saat scaffold | RESEARCH.md §10.7 |
+| `near-sdk` | 4.x (SDK ~4.0 rujukan riset) | final saat scaffold | RESEARCH.md §10 |
+| `near-sdk-contract-tools` | versi terbaru kompatibel | final saat scaffold | Derive NEP + Owner/Pause |
+| `cargo-near` | 0.6.1 (rujukan riset) | final saat scaffold | RESEARCH.md §10.7 |
+| `near-cli-rs` | 0.17.0 (rujukan riset) | final saat scaffold | RESEARCH.md §10.7 |
+| `near-api-js` / `@near-js/*` | versi terbaru saat scaffold | final saat scaffold | Read/view call |
+| `near-connect` | versi terbaru | final saat scaffold | Wallet adapter (ronde 5) |
+| Prisma | versi terbaru saat scaffold | final saat scaffold | Migrate + client |
+| PostgreSQL | 15+ (rujukan; final saat provision) | final saat scaffold | Lihat ekstensi di bawah |
+| TanStack Query | v5 | final saat scaffold | Server state |
+| Zustand | v4/v5 sesuai scaffold | final saat scaffold | Client state |
+
+## Rasional & alternatif yang ditolak
+
+> Setiap pilihan harus punya alasan; alternatif yang ditolak dicatat agar tidak ditinjau ulang tanpa alasan baru. Keputusan lengkap ada di ADR.
+
+| Pilihan | Rasional | Alternatif ditolak | Rujukan |
+|---|---|---|---|
+| Rust + near-sdk | Standar produksi NFT di NEAR; keamanan tipe & WASM | AssemblyScript (ekosistem produksi kurang matang) | RESEARCH.md §3 |
+| near-sdk-contract-tools | Derive NEP + Owner/Pause/Escrow — kurangi boilerplate | Implementasi manual standar (rawan bug) | RESEARCH.md §3 |
+| Market contract terpisah dari NFT | Pola NEAR: satu market melayani banyak koleksi | Satu kontrak gabungan (tidak bisa open market) | ADR-003 |
+| Listing 2-tx + dual verification | Tahan kontrak NFT jahat/buggy (open market) | 1-tx callback-only (percaya callback pihak ketiga) | ADR-002 |
+| Approval non-custodial | NFT tetap di wallet seller; setara OpenSea | Escrow NFT (market pegang aset user) | ADR-007 |
+| On-chain orderbook | Eliminasi serangan signature-order | Off-chain signed order ala Seaport | ADR-012 |
+| Fee 2% on-chain | Tidak bisa dihindari, auditabel, konsisten semua jalur | Fee off-chain / 0% | ADR-005 |
+| Next.js App Router | SSR + API routes dalam satu runtime | Astro (deprecated untuk UI) / SPA murni | ADR-009 |
+| TanStack Query + Zustand | Pemisahan server state vs client state | Redux (overhead) / Context-only (cache manual) | frontend-architecture.md |
+| VPS self-hosted | Kontrol penuh, konsistensi engine, biaya | Vercel + Supabase (managed) | ADR-009 |
+| PostgreSQL (bukan NoSQL) | Data relasional (profil/report/audit) + jsonb untuk trait | Document DB (kurang cocok relasi & audit) | ADR-004 |
+| Prisma migrate | TypeScript-native, cocok Next.js | Raw SQL migration (kurang terintegrasi) | ADR-009/migrations.md |
+| Neardata (bukan NEAR Lake) | Lake DEPRECATED 2026-03 (FACT) | NEAR Lake (dilarang) | ADR-015 |
+| NEP-413 utama | Standar Final, dukungan wallet luas | Custom challenge saja (fallback tetap ada) | ADR-011 |
+| Sputnik DAO V2 (mainnet) | Multisig native NEAR + timelock | Single key (MVP saja) / wallet-2FA legacy (deprecated) | ADR-013 |
+
+## Lisensi & kepatuhan
+
+> Catatan lisensi (diverifikasi saat scaffold; bukan nasihat hukum).
+
+| Komponen | Lisensi umum | Catatan |
+|---|---|---|
+| Rust / near-sdk | MIT / Apache-2.0 | Permisif |
+| near-sdk-contract-tools | MIT | Permisif |
+| Next.js / React | MIT | Permisif |
+| Tailwind CSS | MIT | Permisif |
+| TanStack Query | MIT | Permisif |
+| Zustand | MIT | Permisif |
+| Prisma | Apache-2.0 | Permisif |
+| PostgreSQL | PostgreSQL License | Permisif |
+| near-api-js / near-connect | MIT/Apache-2.0 | Verifikasi saat scaffold |
+| NEP standar | spesifikasi publik | Implementasi bebas |
+
+- **Aturan**: sebelum menambah dependensi, verifikasi lisensi kompatibel (tidak ada copyleft kuat yang membatasi distribusi) dan catat di PR.
+
+## Kebijakan dependensi (tambah/update)
+
+| Aturan | Detail |
+|---|---|
+| Tambah dependensi | Wajib alasan + cek lisensi + cek ukuran bundle (FE) + tidak duplikasi fungsi yang ada |
+| Update | Dependabot/renovate + `npm audit`/`cargo audit` di CI (cicd-security.md) |
+| Lockfile | **Wajib di-commit** (`package-lock.json`/`yarn.lock`, `Cargo.lock`) — SEC-CICD-001 |
+| Kerentanan critical/high | Blok merge sampai diperbaiki (ci-cd.md §3) |
+| Pin versi | Runtime/toolchain di-pin; lib aplikasi boleh range dengan lockfile |
+| Library baru vs tulis sendiri | Utamakan yang terpelihara & auditabel; hindari dependensi dengan transitive tree besar |
+
+## Dev tooling
+
+| Kategori | Alat | Catatan |
+|---|---|---|
+| Format Rust | `cargo fmt` | Wajib tanpa perubahan |
+| Lint Rust | `cargo clippy` | Wajib tanpa warning |
+| Test kontrak | `cargo test` + near-workspaces | Sandbox 2 kontrak |
+| Fuzz/property | cargo-fuzz, proptest/quickcheck | INV-001..030 |
+| Build kontrak | cargo-near | NEP-330 |
+| Lint/format FE | ESLint + Prettier | TypeScript strict |
+| Test FE | Vitest + RTL, Playwright | Unit + E2E |
+| Bundle analysis | Next.js bundle analyzer | Performance budget |
+| Audit | cargo audit, npm audit | CI gate |
+| Secret scan | gitleaks | SEC-CICD-002 |
+| CLI NEAR | near-cli-rs | Deploy/interaksi |
+
+## Runtime target
+
+| Artefak | Target | Catatan |
+|---|---|---|
+| Kontrak | WASM `wasm32-unknown-unknown` | Reproducible build (NEP-330) |
+| Frontend/API | Node.js LTS (server) | Self-hosted di VPS (ADR-009) |
+| Browser | evergreen modern (Chrome/Firefox/Safari/Edge terbaru) | Wallet extension modern |
+| Database | PostgreSQL 15+ di VPS | Engine sama MVP & fase 2 |
+
+## PostgreSQL — versi & ekstensi
+
+> Extensions disiapkan untuk fase 2 (indexer); MVP tidak bergantung padanya.
+
+| Extension | Fungsi | Kapan | Catatan |
+|---|---|---|---|
+| `pg_trgm` | pencarian nama koleksi/token (trigram) | fase 2 | Index GIN/trigram |
+| GIN (built-in) | index `jsonb` untuk trait/filter | fase 2 | Tanpa extension tambahan |
+| btree (built-in) | sort harga/waktu | MVP/fase 2 | Index biasa |
+
+- **Versi**: PostgreSQL 15+ (final saat provision — [infrastructure.md](./infrastructure.md)); ekstensi di-`CREATE EXTENSION` lewat migration ([database/migrations.md](../database/migrations.md)).
+- **Catatan**: index pencarian & trait baru aktif saat indexer fase 2 jalan ([database/database-schema.md](../database/database-schema.md)).

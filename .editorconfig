@@ -1,0 +1,30 @@
+# EditorConfig — konsistensi gaya lintas editor.
+# Detail aturan bahasa: docs/development/code-standards.md
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+
+# Rust — 4 spasi (cargo fmt)
+[*.rs]
+indent_size = 4
+
+# TypeScript / JavaScript / JSON / YAML — 2 spasi (prettier)
+[*.{ts,tsx,js,jsx,mjs,cjs,json,yml,yaml,css,scss,html}]
+indent_size = 2
+
+# TOML (Cargo.toml)
+[*.toml]
+indent_size = 2
+
+# Markdown — jangan trim trailing whitespace (dua spasi = line break)
+[*.md]
+trim_trailing_whitespace = false
+
+# Makefile butuh tab
+[Makefile]
+indent_style = tab

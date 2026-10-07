@@ -1,0 +1,6 @@
+# Pin versi toolchain Rust — SSOT (keputusan TECH): riset versi = RESEARCH.md §10.7; final saat TASK-001.
+[toolchain]
+channel = "1.77.1"
+components = ["rustfmt", "clippy"]
+targets = ["wasm32-unknown-unknown"]
+profile = "minimal"

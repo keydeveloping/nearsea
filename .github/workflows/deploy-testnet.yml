@@ -1,0 +1,52 @@
+# =============================================================================
+# Deploy — TESTNET (branch `testnet`)
+# SKELETON. Deploy ke environment testnet publik (staging testnet terpisah).
+# CATATAN: deploy kontrak testnet TIDAK mengubah mainnet, tapi tetap ter-gate
+# environment (approval 1 orang) agar tidak tak sengaja menimpa rilis testnet.
+# Aturan: docs/development/git-workflow.md + docs/development/ci-cd.md
+# =============================================================================
+
+name: Deploy (testnet)
+
+on:
+  push:
+    branches: [testnet]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-testnet
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy testnet
+    runs-on: ubuntu-latest
+    environment:
+      name: testnet
+      url: ${{ vars.TESTNET_APP_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup SSH deploy key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ vars.TESTNET_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Deploy via SSH
+        run: |
+          ssh -i ~/.ssh/deploy_key "${{ vars.TESTNET_SSH_USER }}@${{ vars.TESTNET_HOST }}" \
+            "cd ${{ vars.TESTNET_APP_DIR }} && docker compose pull && docker compose up -d"
+
+      - name: Verify contract code hash (SEC-CONTRACT-006)
+        run: |
+          # Bandingkan hash artifact CI dengan contract_source_metadata on-chain.
+          # Placeholder: perintah final diisi saat scaffold kontrak (Fase 1).
+          echo "TODO(scaffold): near view <contract> contract_source_metadata | verify hash"
+
+      - name: Smoke test
+        run: curl -fsS "${{ vars.TESTNET_APP_URL }}/api/health" || exit 1
