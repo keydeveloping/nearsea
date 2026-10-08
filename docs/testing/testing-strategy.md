@@ -16,6 +16,14 @@ Security test                     — checklist NEAR + skenario threat-model
 ## Tooling
 
 - Kontrak: `cargo test` + **near-workspaces** (sandbox, deploy NFT + market bersama).
+  **Status (ronde 24, TASK-006)**: suite slice dua-kontrak sudah ada di
+  `market/tests/slice_sandbox.rs` (+ harness `market/tests/common/mod.rs`) — 18 test men-deploy wasm
+  koleksi + market nyata dari `target/near/<crate>/`. Karena itu **CI membangun wasm sebelum test**.
+  **Sandbox hanya jalan di Linux/macOS** (binary nearcore tidak dipublikasikan untuk Windows): suite
+  di-`#![cfg(unix)]`, dev-dependency di-scope `[target.'cfg(unix)'.dev-dependencies]` supaya
+  `cargo test`/`clippy` di Windows tidak berubah. Saldo dibaca setelah rantai "tenang"
+  (`fast_forward`) — query default `near-workspaces` memakai `Finality::Optimistic` dan bisa
+  mengembalikan state antara.
 - **Property/fuzz**: quickcheck/proptest di atas near-workspaces untuk invariant (referensi pola: near-prop); **cargo-fuzz** untuk fungsi murni non-chain (parsing payout, konversi u128, perhitungan fee/split) — keputusan 2026-10-01.
 - Frontend: **Vitest + React Testing Library** (unit/hook) + **Playwright** (E2E jalur emas: connect → list → buy, offer → accept).
 - API/report: integration test endpoint + verifikasi signature (NEP-413 + fallback).

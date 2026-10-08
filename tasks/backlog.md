@@ -35,7 +35,7 @@ Milestone: M0 | M1 | M2 | M3 | M4
 | TASK-003 | Kontrak NFT: royalty NEP-199 (cap 10%) | contract | P0 | 002 | features/marketplace | done | 1 | Payout royalti ≤10% teruji (INV-003/027) | M1 |
 | TASK-004 | Kontrak market: storage NEP-145 + listing 2-tx + dual verification | contract | P0 | 002 | features/marketplace | done | 4 | List/cancel + storage deposit lolos (INV-020, TC-002) | M1 |
 | TASK-005 | Kontrak market: buy + nft_transfer_payout + resolve/refund (+ private listing & bundle — dgn TASK-010) | contract | P0 | 004 | features/marketplace.md + payments.md | done | 5 | Buy sukses + refund + race 20 pembeli lolos (INV-001/016, TC-003/016) | M1 |
-| TASK-006 | Sandbox tests 2-kontrak **subset slice**: mint->list->buy->refund + race (TC-001/002/013/016/017/020/022/044/047/048) + INV slice (001..016, 023, 030, 031) | contract | P0 | 002-005 | testing/test-cases.md (Slice M1) | todo | 4 | Suite sandbox hijau; semua INV **slice** punya test (INV M1+ di-defer eksplisit) | M1 |
+| TASK-006 | Sandbox tests 2-kontrak **subset slice**: mint->list->buy->refund + race (TC-001/002/013/016/017/020/022/044/047/048) + INV slice (001..016, 023, 030, 031) | contract | P0 | 002-005 | testing/test-cases.md (Slice M1) | done | 4 | Suite sandbox hijau; semua INV **slice** punya test (INV M1+ di-defer eksplisit) | M1 |
 | TASK-007 | Frontend: connect wallet (near-connect) | frontend | P0 | 001 | features/auth | todo | 2 | Connect/disconnect + banner network jalan di testnet | M1 |
 | TASK-008 | Frontend: browse/listings/buy UI (Next.js + Tailwind, EN + i18n) — **tanpa prasyarat branding** (default Tailwind) | frontend | P0 | 007 | features/marketplace | todo | 5 | Browse->list->buy end-to-end via UI (jalur emas Playwright) | M1 |
 | TASK-008b | Sesi desain custom branding (warna, font, tokens) → design system | design | P0 (sebelum UI) | — | 04-ux-ui-spec.md | todo | 3 | Token warna/font + primitives `components/ui/` dipakai TASK-008/021 | M1+ |
@@ -66,6 +66,7 @@ Milestone: M0 | M1 | M2 | M3 | M4
 | TASK-033 | Error & notifikasi terpusat: registry kode error + pemetaan panic kontrak + kebijakan notifikasi (FE + API) | frontend/backend | P1 | 008 | development/error-handling | todo | 2 | Modul error terpusat dipakai; tidak ada pesan ad-hoc | M1+ |
 | TASK-034 | Prep scaling: app stateless + pooling + rencana read replica/LB (aktif saat trafik naik) | infra | P1 (fase 2) | 028 | architecture/scaling | todo | 3 | App stateless terverifikasi + rencana replica/LB tertulis | M2 |
 | TASK-035 | Audit dependensi: tinjau ulang advisory tanpa patch yang di-*ignore* (`--ignore-unfixable`) | infra | P2 | 001 | development/ci-cd.md §3 | todo | 0.5 | Advisory yang di-ignore punya keputusan tercatat: diperbaiki, diganti, atau diterima + alasan | M1+ |
+| TASK-036 | **Fix storage accounting `nft_transfer` atas token ter-approve (temuan F1)** — transfer gagal `ExcessiveUnlockError` bila penerima belum punya token; storage entry approval dibebaskan ke **penerima** padahal ditagih ke **owner** | contract | P0 | 002 | contracts/nft-collection.md §4/§7 + security/smart-contract-security-architecture.md §15 | todo | 2 | `nft_transfer` token ter-approve ke penerima terdaftar berhasil (regression test sandbox) | M1 |
 
 > **TASK-031 `done` (ronde 18c):** repo dijadikan **publik** oleh user → branch protection tersedia (sebelumnya 403 "butuh GitHub Pro" saat private). Proteksi **aktif** di `dev`/`testnet`/`mainnet`: PR wajib, force-push & delete diblokir **termasuk admin** (`enforce_admins`), 5 required status checks, conversation resolution; `strict` (branch up-to-date) di testnet/mainnet. Tag protection via ruleset `protect-release-tags` (`contract-v*`/`web-v*`/`indexer-v*`: delete + update diblokir). **Bukti**: push langsung ke `dev` ditolak GitHub — `GH006 Protected branch update failed … Changes must be made through a pull request. 5 of 5 required status checks are expected.`
 > **Required approval = 0 (ditunda, keputusan user ronde 18c):** repo hanya punya satu akun dan GitHub melarang self-approve, jadi approval 2/1 akan mengunci semua PR. Naikkan ke `testnet`=1 / `mainnet`=2 saat ada maintainer kedua ([git-workflow.md](../docs/development/git-workflow.md) §16). `require_code_owner_reviews` juga ditunda karena alasan yang sama.
@@ -150,6 +151,49 @@ Milestone: M0 | M1 | M2 | M3 | M4
 > = proceeds seller (wajar besar), bukan dust → INV-002 dikoreksi + ~15 dokumen disinkronkan. **Belum
 > diklaim**: race TC-016/017 versi sandbox, TC-022, TC-048, dan angka gas terukur — semuanya butuh dua
 > kontrak nyata (TASK-006).
+
+> **TASK-006 `done` (ronde 24):** suite sandbox dua-kontrak di `market/tests/slice_sandbox.rs`
+> (**18 test**) + harness `market/tests/common/mod.rs`, men-deploy wasm koleksi + market **nyata** ke
+> sandbox chain (`near-workspaces`) dari `target/near/<crate>/` — jalur artefak yang sama dipakai gate
+> CI (sehingga CI membangun wasm + fixture **sebelum** test). Cakupan: TC-001, TC-002, TC-003 (via
+> fixture koleksi pihak ketiga `market/tests/fixtures/rogue-collection`), TC-006, TC-013, TC-016,
+> TC-017, TC-020, TC-022, TC-044, TC-047, TC-048, TC-053, TC-054, plus INV-014 dan INV-004/INV-027.
+> **Bukti**: `cargo test --workspace` = **134 test** (73 market unit + 18 sandbox + 42 koleksi +
+> 1 factory); `fmt --check` + `clippy -D warnings` bersih; 4 wasm ter-build.
+> **Batasan lingkungan**: sandbox hanya jalan di Linux/macOS (binary nearcore tidak dipublikasikan
+> untuk Windows) → suite di-`#![cfg(unix)]` dan dev-dependency di-scope `[target.'cfg(unix)'.dev-dependencies]`
+> supaya gate lokal Windows tidak berubah; di CI (`ubuntu-latest`) ia berjalan penuh.
+> **Deferred eksplisit (M1+)**: bundle, offers, launchpad penuh, pause, API/admin/notifikasi/E2E, dan
+> kalibrasi angka gas terukur (harness-nya sudah ada).
+
+> **TASK-036 (temuan F1, ronde 24 — saat TASK-006):** suite sandbox dua-kontrak menemukan bug nyata
+> di kontrak koleksi: **`nft_transfer` atas token yang masih di-approve gagal** dengan
+> `Storage accounting error: Account <receiver> cannot unlock more tokens than it has deposited`
+> (`ExcessiveUnlockError`), kecuali penerima **sudah** memegang token lain di koleksi yang sama.
+>
+> **Reproduksi (sandbox, 3 kasus, semuanya dengan penerima terdaftar NEP-145):**
+> (a) token ter-approve → penerima fresh **gagal**; (b) token ter-approve → penerima yang sudah punya
+> 1 token **berhasil**; (c) token ter-approve → penerima dengan saldo storage besar (2 Ⓝ) **gagal**;
+> (d) token **tanpa** approval → penerima fresh **berhasil**. Jalur `buy` (`nft_transfer_payout`)
+> **tidak terpengaruh** — buyer fresh berhasil di semua percobaan.
+>
+> **Akar masalah (hipotesis kuat, perlu konfirmasi saat perbaikan):** hook NEP-145
+> (`Nep171StorageAccountingHook`) menghitung selisih `storage_usage` di sekitar transfer dan
+> mengatribusikannya ke `action.receiver_id`. Saat token ter-approve dipindah, entry approval ikut
+> terhapus → `storage_usage` **turun** → kontrak memanggil `unlock_storage(receiver, kredit)`. Padahal
+> storage entry approval itu **ditagih ke owner** (via `PredecessorStorageAccountingHook` saat
+> `nft_approve`), bukan ke receiver. Receiver yang `available == total` (belum pernah lock apa pun)
+> langsung menabrak `ExcessiveUnlockError`. Kasus (b) lolos karena penerima sudah punya token → `total`
+> lebih besar dari `available` → masih ada ruang untuk kredit.
+>
+> **Dampak:** siapa pun yang memindahkan token lewat `nft_transfer` **standar NEP-171** (jalur non-market:
+> transfer hadiah, jual di tempat lain, migrasi wallet) gagal selama token masih di-approve ke market.
+> Jalan keluar sementara (dipakai TC-006): `nft_revoke` dulu, baru `nft_transfer`. Jalur uang NearSea
+> sendiri (`list` → `buy` via NEP-199) **tidak terkena** — itu sebabnya bug ini tidak terlihat di 116 test
+> unit sebelumnya. **Wajib diperbaiki sebelum M1 selesai** karena `nft_transfer` adalah method NEP-171 inti
+> dan menjadi prasyarat TC-006 yang sesungguhnya (stale karena kepemilikan pindah). Perbaikan yang
+> diusulkan: bebaskan storage entry approval ke **owner** (`action.sender_id`/owner saat itu), bukan ke
+> receiver — atau jangan pakai hook generik untuk jalur transfer.
 
 > **TASK-035 (dibuat ronde 18, TASK-001):** `braces <=3.0.3` (high, ReDoS) masuk lewat
 > `eslint-config-next → @next/eslint-plugin-next → fast-glob → micromatch`. Versi terbaru `braces` = 3.0.3

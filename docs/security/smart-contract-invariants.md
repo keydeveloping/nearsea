@@ -104,6 +104,16 @@
 - **Test "unit"/"property"/"fuzz"** = belum ada TC bernomor; dibuktikan di level unit/property/fuzz (lihat §Cara diverifikasi nanti). TC bernomor = bukti sandbox/API/E2E.
 - Baris tanpa SEC-ID = aturan bisnis terkunci (INV-023/024/026/028/030) — tetap wajib diuji, tetapi tidak dipetakan ke requirement keamanan register.
 - **P0** = wajib hijau sebelum gate fasenya; **P1** = wajib sebelum mainnet gate.
+- **Bukti sandbox dua-kontrak (TASK-006, ronde 24):** `market/tests/slice_sandbox.rs` men-deploy
+  koleksi + market nyata dan membuktikan INV-001, INV-002, INV-003, INV-004, INV-007, INV-008,
+  INV-011, INV-014, INV-015, INV-016, INV-019, INV-020, INV-023, INV-026, INV-027, INV-030, INV-031
+  pada rantai sungguhan (bukan mock) — lihat [test-cases.md](../testing/test-cases.md) §blok
+  "Sudah dibuktikan di level sandbox dua-kontrak". INV-005/006/009/010/012/013/017/018/021/022/024/
+  025/028/029 tetap dibuktikan di level unit atau di-defer ke M1+ (dinyatakan eksplisit, bukan
+  dibiarkan tanpa jejak).
+- **Temuan F1 (TASK-036):** suite sandbox menemukan `nft_transfer` atas token yang **masih di-approve**
+  gagal `ExcessiveUnlockError` (storage-accounting NEP-145) — bug kontrak koleksi, bukan pelanggaran
+  INV di atas; dicatat di [tasks/backlog.md](../../tasks/backlog.md) TASK-036.
 
 ## Cara diverifikasi nanti (tooling DIPUTUSKAN — riset 2026-10-01)
 

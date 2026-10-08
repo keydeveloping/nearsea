@@ -66,6 +66,20 @@ Kebijakan lengkap: [docs/development/versioning-and-release.md](./docs/developme
 
 ### Contract (kontrak NFT + market + factory)
 ### Added
+- **Suite sandbox dua-kontrak (TASK-006, 2026-10-08)** — `market/tests/slice_sandbox.rs` (**18 test**)
+  + harness `market/tests/common/mod.rs` men-deploy wasm **koleksi + market nyata** ke sandbox chain
+  (`near-workspaces`), bukan mock, dari `target/near/<crate>/`. Membuktikan tesis slice di rantai
+  sungguhan: jalur bahagia penuh dengan angka exact (fee 2% → treasury, royalti 5% → kreator, proceeds
+  seller = residual; **NFT terbukti tetap di wallet seller selama listing** — non-custodial diasersi
+  on-chain), **race 20 pembeli → tepat 1 menang** dengan 19 deposit kembali penuh (hanya gas hangus),
+  stale dua kasus (kepemilikan pindah **dan** approval dicabut) → refund penuh + `market_stale_detected`,
+  **payout tidak valid dari koleksi pihak ketiga** → refund penuh + listing dipulihkan, recovery
+  pembelian nyangkut permissionless (TC-054), plus TC-001/013/017/020/022/044/047/048 dan
+  INV-004/014/027. Crate fixture **TEST** baru `market/tests/fixtures/rogue-collection/` (koleksi
+  pihak ketiga "nakal" untuk TC-003) — tidak pernah ikut rilis. `ci.yml` kini **membangun wasm +
+  fixture sebelum test**. Suite di-`#![cfg(unix)]` (binary sandbox nearcore tidak dipublikasikan untuk
+  Windows) dengan dev-dependency di-scope `[target.'cfg(unix)'.dev-dependencies]` supaya gate lokal
+  Windows tidak berubah.
 - **Market buy + settlement + refund (TASK-005, 2026-10-08)** — jalur uang `market/src/lib.rs`. `buy`
   menulis `pending_purchases` **sebelum** optimistic removal (INV-031), lalu callback `#[private]`
   `process_purchase` menjalankan dual verification **saat settle** (stale dua kasus INV-016 → refund
@@ -146,6 +160,13 @@ Kebijakan lengkap: [docs/development/versioning-and-release.md](./docs/developme
   (RESEARCH.md §10.5) yang tidak dipakai NearSea.
 
 ### Fixed
+- **Temuan F1 dari suite sandbox (TASK-006, 2026-10-08)** — `nft_transfer` atas token yang **masih
+  di-approve** gagal `Storage accounting error: … cannot unlock more tokens than it has deposited`
+  (`ExcessiveUnlockError`) bila penerima belum memegang token lain di koleksi yang sama. Diduga hook
+  NEP-145 membebaskan storage entry approval ke **receiver**, padahal entry itu ditagih ke **owner**.
+  **Belum diperbaiki** — dicatat sebagai **TASK-036** (P0, wajib selesai sebelum M1 ditutup); jalur uang
+  NearSea (`list` → `buy` via NEP-199) tidak terkena, dan TC-006 memakai urutan `nft_revoke` →
+  `nft_transfer` sebagai jalan keluar sementara.
 - **Koreksi spesifikasi `nft_revoke_token` (TASK-004, 2026-10-08)** — 5 dokumen menyebut `remove_sale`
   memanggil `nft_revoke_token` "sebagai approved account". **Method itu tidak ada di NEP-178**: standar
   hanya punya `nft_revoke`/`nft_revoke_all`, keduanya **owner-only** ("MUST panic if called by someone

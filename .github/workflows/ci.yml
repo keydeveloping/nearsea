@@ -55,9 +55,6 @@ jobs:
       - name: Clippy (deny warnings)
         run: cargo clippy --all-targets -- -D warnings
 
-      - name: Unit + sandbox tests (near-workspaces)
-        run: cargo test --workspace
-
       # cargo-near dipasang dari rilis resmi dengan versi + hash ter-pin
       # (bukan `cargo install` tanpa pin — cicd-security.md §3).
       - name: Install cargo-near (pinned)
@@ -77,11 +74,28 @@ jobs:
       # Build wasm + ABI diaktifkan (TASK-032, ci-cd.md §14). Gate ini membuktikan
       # wasm ter-build dan ABI-nya sah; build REPRODUCIBLE (NEP-330, image Docker
       # ter-pin) berjalan di release.yml saat tag rilis dibuat.
+      #
+      # Dijalankan SEBELUM test: suite sandbox (`market/tests/slice_sandbox.rs`)
+      # men-deploy wasm nyata dari `target/near/<crate>/` ke sandbox chain, jadi
+      # artefak ini adalah prasyarat test — bukan hanya artefak rilis.
       - name: Build wasm + ABI
         run: |
           for crate in contract market factory; do
             cargo near build non-reproducible-wasm --manifest-path "$crate/Cargo.toml"
           done
+
+      # Fixture TEST (bukan kontrak produksi, di luar workspace): koleksi pihak ketiga
+      # "nakal" untuk TC-003 — membuktikan market memvalidasi payout sebagai UNTRUSTED.
+      - name: Build sandbox test fixture (rogue collection)
+        run: |
+          cargo near build non-reproducible-wasm --no-abi \
+            --manifest-path market/tests/fixtures/rogue-collection/Cargo.toml
+
+      # Unit + sandbox: suite sandbox dua-kontrak (TASK-006) men-deploy wasm hasil
+      # langkah sebelumnya ke chain lokal (near-workspaces). Hanya berjalan di
+      # Linux/macOS — binary sandbox nearcore tidak dipublikasikan untuk Windows.
+      - name: Unit + sandbox tests (near-workspaces)
+        run: cargo test --workspace
 
       # Versi artefak harus tertanam di wasm dan bisa dibaca dari luar (NEP-330,
       # SEC-CONTRACT-006). Diperiksa tiap PR agar metadata tidak pernah basi.
@@ -110,10 +124,14 @@ jobs:
           [ "$failed" -eq 0 ] || exit 1
           echo "Metadata NEP-330 ketiga crate terverifikasi."
 
+      # Hanya wasm kontrak PRODUKSI yang di-hash/di-upload — fixture test di atas juga
+      # menulis ke `target/near/`, dan ia bukan artefak rilis.
       - name: Record wasm code hash (sha256)
         run: |
           mkdir -p artifacts
-          sha256sum target/near/*/*.wasm | tee artifacts/code-hash.txt
+          sha256sum target/near/nearsea_nft_collection/*.wasm \
+                    target/near/nearsea_market/*.wasm \
+                    target/near/nearsea_factory/*.wasm | tee artifacts/code-hash.txt
 
       - name: Upload contract artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -121,7 +139,9 @@ jobs:
           name: contracts-wasm
           retention-days: 90
           path: |
-            target/near/*/*.wasm
+            target/near/nearsea_nft_collection/*.wasm
+            target/near/nearsea_market/*.wasm
+            target/near/nearsea_factory/*.wasm
             artifacts/code-hash.txt
 
   # --- Frontend (Next.js) -----------------------------------------------------

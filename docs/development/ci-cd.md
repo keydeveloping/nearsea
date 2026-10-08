@@ -106,7 +106,6 @@ contracts:
         key: cargo-${{ hashFiles('**/Cargo.lock') }}
     - run: cargo fmt --all -- --check
     - run: cargo clippy --all-targets -- -D warnings
-    - run: cargo test --workspace
     # cargo-near: versi + sha256 di-pin (bukan `cargo install` tanpa pin)
     - run: |
         curl -fsSL -o cargo-near.tar.gz \
@@ -114,10 +113,18 @@ contracts:
         echo "<sha256>  cargo-near.tar.gz" | sha256sum --check --strict
         tar -xzf cargo-near.tar.gz
         install -m 0755 cargo-near-x86_64-unknown-linux-gnu/cargo-near "$HOME/.cargo/bin/cargo-near"
+    # Build wasm SEBELUM test: suite sandbox (`market/tests/slice_sandbox.rs`) men-deploy
+    # wasm nyata dari `target/near/<crate>/` ke sandbox chain (TASK-006).
     - run: |
         for crate in contract market factory; do
           cargo near build non-reproducible-wasm --manifest-path "$crate/Cargo.toml"
         done
+    # Fixture TEST di luar daftar crate produksi: koleksi pihak ketiga "nakal" (TC-003).
+    - run: |
+        cargo near build non-reproducible-wasm --no-abi \
+          --manifest-path market/tests/fixtures/rogue-collection/Cargo.toml
+    # Unit + sandbox (Linux/macOS saja — binary sandbox nearcore tidak ada untuk Windows).
+    - run: cargo test --workspace
     # Verifikasi metadata NEP-330 (versi + link) — lihat §14.
     - run: |
         set -euo pipefail
@@ -390,4 +397,5 @@ Aturan rollback:
   [release.yml](../../.github/workflows/release.yml) (dipicu tag rilis; bisa diuji-kering lewat
   `workflow_dispatch`). [ci.yml](../../.github/workflows/ci.yml) tetap memakai build cepat
   (host runner) untuk gate PR, kini **dengan ABI** + verifikasi metadata NEP-330.
-- **Belum ada di CI (sengaja, jangan ditambahkan sebagai required check sebelum job-nya ada):** `API — test` (butuh API + DB, TASK-018), `Fuzz smoke` (TASK-006+), `E2E — golden path` (TASK-008/010).
+- **Belum ada di CI (sengaja, jangan ditambahkan sebagai required check sebelum job-nya ada):** `API — test` (butuh API + DB, TASK-018), `Fuzz smoke` (butuh target `cargo-fuzz`, belum ada), `E2E — golden path` (TASK-008/010).
+- **Urutan job kontrak (TASK-006, ronde 24):** `fmt` → `clippy` → build wasm (3 crate + fixture test) → `cargo test --workspace`. Build wasm **sebelum** test karena suite sandbox men-deploy artefak nyata dari `target/near/<crate>/`. Suite sandbox hanya berjalan di Linux/macOS (runner CI = `ubuntu-latest`); di Windows ia terkompilasi menjadi nol test lewat `#![cfg(unix)]`, dan dev-dependency `near-workspaces` di-scope `[target.'cfg(unix)'.dev-dependencies]` supaya gate lokal Windows tidak berubah.

@@ -68,6 +68,25 @@
   **Belum diklaim**: race TC-016/017, TC-022, TC-048, angka gas terukur — butuh TASK-006. Sisa slice M1:
   TASK-006 (suite sandbox), jalur FE 007 → 008.
 
+- **Status TASK-006 (2026-10-08, ronde 24): ✅ `done`.** Suite sandbox dua-kontrak di
+  `market/tests/slice_sandbox.rs` (**18 test**) + harness `market/tests/common/mod.rs` — men-deploy wasm
+  **koleksi + market nyata** di sandbox chain (bukan mock) dari `target/near/<crate>/`, jalur yang sama
+  dipakai gate CI. Yang dibuktikan: **TC-002** jalur bahagia penuh dengan angka exact (fee 2% → treasury,
+  royalti 5% → kreator, proceeds seller = residual; NFT **terbukti** tetap di wallet seller selama
+  listing — non-custodial; approval lama invalid setelah transfer), **TC-001**, **TC-003** (payout tidak
+  valid dari koleksi pihak ketiga — fixture `market/tests/fixtures/rogue-collection` — → refund penuh +
+  listing dipulihkan, empat bentuk payout invalid + kontrol `Valid`), **TC-006/TC-053** (stale dua kasus),
+  **TC-013**, **TC-016** (race 20 pembeli → tepat 1 menang, 19 revert `CONFLICT_SOLD` dengan deposit
+  kembali penuh), **TC-017**, **TC-020**, **TC-022**, **TC-044**, **TC-047**, **TC-048**, **TC-054**
+  (recovery permissionless), plus INV-014 dan INV-004/INV-027 (split konsisten saat fee & royalti di cap).
+  Bukti: `cargo test --workspace` = **134 test** (73 market unit + 18 sandbox + 42 koleksi + 1 factory),
+  `fmt --check` + `clippy -D warnings` bersih, 4 wasm ter-build. **Sandbox hanya jalan di Linux/macOS**
+  (binary nearcore tidak dipublikasikan untuk Windows) — dev-dependency di-scope `cfg(unix)` supaya gate
+  lokal Windows tidak berubah; CI membangun wasm + fixture sebelum test.
+  **Temuan F1 (bug nyata, bukan test yang salah):** `nft_transfer` atas token yang **masih di-approve**
+  gagal `ExcessiveUnlockError` (storage-accounting NEP-145 di kontrak koleksi) → dicatat sebagai
+  **TASK-036**; jalur uang NearSea (`list` → `buy`) tidak terkena. Sisa slice M1: jalur FE 007 → 008.
+
 ## M1+ — MVP completion (lanjutan eksplisit, bukan dibuang)
 
 - Sisa fitur MVP lama: offers (009), private listing + bundle (010), factory (012), notifikasi (015),

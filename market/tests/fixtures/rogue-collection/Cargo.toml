@@ -1,0 +1,27 @@
+[package]
+name = "nearsea-rogue-collection-fixture"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = """
+Fixture TEST SAJA — bukan kontrak produksi, tidak pernah di-deploy ke jaringan nyata.
+
+Koleksi "nakal" minimal (NEP-171/178/199) yang mengembalikan payout royalti **tidak valid**
+dan tidak benar-benar memindahkan token. Dipakai `market/tests/slice_sandbox.rs` (TC-003) untuk
+membuktikan market memvalidasi payout dari koleksi pihak ketiga sebagai **UNTRUSTED**:
+payout invalid → refund penuh buyer + listing dipulihkan (SEC-ORDER-001, INV-002/003).
+
+Crate ini sengaja berdiri sendiri (`[workspace]` kosong) supaya gate workspace produksi
+(`cargo test/clippy --workspace`, `cargo near build` untuk contract/market/factory) tidak
+ikut menyertakannya; CI membangunnya secara eksplisit sebelum suite sandbox berjalan.
+"""
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+near-sdk = { workspace = true }
+
+# Fitur `unit-testing` agar crate ini bisa dikompilasi untuk host juga (bukan hanya wasm).
+[dev-dependencies]
+near-sdk = { workspace = true, features = ["unit-testing"] }
