@@ -46,9 +46,9 @@
   `list_nft_for_sale` 2-tx non-custodial + callback `process_listing` `#[private]` yang memverifikasi
   sendiri lewat dua view XCC (kepemilikan **dan** approval — SEC-ORDER-004, ADR-002), `remove_sale`,
   `update_price`, view listing, storage NEP-145 (bounds `min = storage_per_sale()`), Pausable (INV-022),
-  dan tiga event kanonik. Bukti: **69 test** workspace (26 baru) — non-custodial dibuktikan dengan membaca
+  dan tiga event kanonik. Bukti: **75 test** workspace (32 baru) — non-custodial dibuktikan dengan membaca
   receipt (hanya 2 view + callback; tidak ada `nft_transfer*`); `fmt`/`clippy -D warnings` bersih; wasm
-  193 KB. **Koreksi dokumen**: `nft_revoke_token` tidak ada di NEP-178 → `remove_sale` tidak mencabut
+  197 KB. **Koreksi dokumen**: `nft_revoke_token` tidak ada di NEP-178 → `remove_sale` tidak mencabut
   approval ([contracts/market.md](../docs/contracts/market.md) §2a). **Belum diklaim**: paruh buy TC-002,
   race TC-016/017, TC-022, TC-048, angka gas penuh — butuh TASK-005/006. Sisa slice M1: TASK-005 → 006,
   dan jalur FE 007 → 008.

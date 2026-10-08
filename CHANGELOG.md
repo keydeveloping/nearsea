@@ -75,7 +75,10 @@ Kebijakan lengkap: [docs/development/versioning-and-release.md](./docs/developme
   `update_price` (in-place, min harga), view `get_sale`/`get_sales` (paginasi + clamp)/`get_supply_sales`,
   dan event `market_list`/`market_delist`/`market_update_price` (envelope `SingleEvent` sama dengan koleksi).
   Harga min 0.01 Ⓝ (INV-030, batas inklusif), duplikat listing ditolak (INV-007), storage kurang → revert
-  (INV-020), `approval_id` di luar rentang `u32` ditolak. **Belum termasuk**: `buy`/`resolve_purchase` +
+  (INV-020), `approval_id` di luar rentang `u32` ditolak. Ditambah **`nft_on_approve`** (receiver NEP-178)
+  yang wajib ada untuk tx-1 (`nft_approve(market, msg)`) tapi sengaja **tidak** membuat listing (ADR-002),
+  dan pause yang ditegakkan **juga di callback** `process_listing` (receipt terpisah — INV-022).
+  **Belum termasuk**: `buy`/`resolve_purchase` +
   `pending_purchases`/`recover_stuck_purchase` (TASK-005), `fee_bps`/`treasury` di init (TASK-005),
   offers/bundle (TASK-009/010), `remove_stale_listing` (TASK-022), kalibrasi gas/storage sandbox (TASK-006).
 - **Royalti NEP-199 (TASK-003, 2026-10-08)** — `nft_transfer_payout` di `contract/src/lib.rs`:

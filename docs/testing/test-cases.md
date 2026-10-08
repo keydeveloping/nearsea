@@ -349,7 +349,7 @@ Layer: sandbox | Invariant: INV-031
 > Σ ≤ harga−fee, sisa ≤1 yocto, refund saat invalid) — itu bagian sandbox TC-003 milik TASK-006,
 > bersama angka gas 15 Tgas.
 
-> **Sudah dibuktikan di level unit untuk paruh listing (ronde 22, TASK-004):** 26 test di
+> **Sudah dibuktikan di level unit untuk paruh listing (ronde 22, TASK-004):** 32 test di
 > `market/src/lib.rs` menutup paruh **list** dari TC-002 (dual verification: ownership **dan** approval,
 > termasuk jalur `nft_token` gagal / `None` / approval `false`), TC-013 (harga < min, plus batas
 > inklusif tepat 0.01 Ⓝ), TC-020 (storage kurang → revert; storage kembali saat `remove_sale`),

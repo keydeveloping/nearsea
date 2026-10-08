@@ -114,11 +114,11 @@ Milestone: M0 | M1 | M2 | M3 | M4
 > view `get_sale`/`get_sales`/`get_supply_sales`, storage NEP-145 (bounds `min = storage_per_sale()`,
 > 500 byte PROPOSED), Pausable (INV-022: `remove_sale` tetap boleh saat paused), dan tiga event
 > (`market_list`/`market_delist`/`market_update_price`) dengan envelope `SingleEvent` yang sama dengan
-> koleksi. **Bukti**: 26 test baru (69 test workspace) — dual verification termasuk jalur token tidak
+> koleksi. **Bukti**: 32 test baru (75 test workspace) — dual verification termasuk jalur token tidak
 > ada/`None`/approval `false`, non-custodial dibuktikan dengan **membaca receipt** (hanya 2 view +
 > callback; tidak ada `nft_transfer*`), harga min inklusif, duplikat listing, storage kurang, storage
 > kembali saat cancel, `approval_id` di luar rentang `u32`, paginasi/clamp. Gate lokal hijau:
-> `fmt --check`, `clippy -D warnings` (0 warning), `test --workspace`, build wasm 193 KB (semua method
+> `fmt --check`, `clippy -D warnings` (0 warning), `test --workspace`, build wasm 197 KB (semua method
 > ada di ABI). **Koreksi dokumen (temuan saat implementasi):** `nft_revoke_token` yang disebut 5 dokumen
 > **tidak ada di NEP-178** (hanya `nft_revoke`/`nft_revoke_all`, keduanya owner-only) — jadi `remove_sale`
 > **tidak** mencabut approval; re-list butuh `nft_revoke` oleh seller lalu `nft_approve` baru. Didokumentasikan

@@ -39,6 +39,11 @@
       → assert payload di `test_list_creates_sale_after_dual_verification` (`seller`/`token_id`/`price_yocto`/`approval_id`),
       `test_remove_sale_deletes_listing_and_emits_delist`, `test_update_price_changes_price_in_place`
       (harga lama + baru). Bentuk `data` = array (envelope `SingleEvent`, sama dengan koleksi).
+- [x] **Tambahan (bukan di AC, wajib untuk flow 2-tx):** `nft_on_approve` (NEP-178 receiver) ada dan
+      **tidak** membuat listing (ADR-002) — `test_nft_on_approve_accepts_valid_payload`,
+      `test_nft_on_approve_does_not_create_listing`, `test_nft_on_approve_rejects_empty_payload`,
+      `test_nft_on_approve_rejects_self_as_owner`. Tanpa method ini, tx-1 (`nft_approve(market, msg)`)
+      memanggil method yang tidak ada.
 - [ ] Sandbox hijau: list → cancel, plus jalur gagal (TC-002 paruh list, TC-013, TC-020, TC-044).
       → ⚠️ **Unit-level, bukan sandbox.** Semua jalur di atas dibuktikan di unit (26 test); suite **sandbox**
       (`near-workspaces`, 2 kontrak) milik tiket `08` — lihat
@@ -51,8 +56,8 @@ owner-only, paused (INV-022). Paruh **buy** TC-002 dan angka gas penuh tetap mil
 
 **Gate lokal (ronde 22):** `cargo fmt --all -- --check` ✅ ·
 `cargo clippy --all-targets -- -D warnings` (0 warning) ✅ · `cargo test --workspace` ✅
-(**69 test**: 1 factory + 26 market + 42 koleksi) · `cargo near build non-reproducible-wasm --no-abi`
-(193 KB; ABI memuat `list_nft_for_sale`, `process_listing`, `remove_sale`, `update_price`, view, dan
+(**75 test**: 1 factory + 26 market + 42 koleksi) · `cargo near build non-reproducible-wasm --no-abi`
+(197 KB; ABI memuat `list_nft_for_sale`, `process_listing`, `remove_sale`, `update_price`, view, dan
 method NEP-145/Pause) ✅. Sama seperti tiket sebelumnya, build ABI penuh dijalankan CI (Linux) karena
 keterbatasan Windows ([ci-cd.md](../../../docs/development/ci-cd.md) §14).
 
@@ -74,10 +79,18 @@ keterbatasan Windows ([ci-cd.md](../../../docs/development/ci-cd.md) §14).
   tidak menjanjikan urutan apa pun.
 - **Batas storage PROPOSED = plafon, bukan nominal eksak.** `assert_storage_for_listing` mengecek
   `available ≥ storage_per_sale()` (500 byte) secara **sinkron**; pertumbuhan **aktual** ditagih di
-  callback `charge_storage`. Bila entry `Sale` ternyata tumbuh >500 byte (mis. `token_id` sangat
-  panjang), callback panic `CHAIN_REVERT` — listing tidak jadi, **tanpa kehilangan dana** (deposit tetap
-  di saldo storage seller, bisa ditarik atau dipakai ulang). Fail-closed dan nominal final diukur di
-  TASK-006 (OQ-007).
+  callback `settle_storage_delta`. Bila entry `Sale` ternyata tumbuh >500 byte (mis. `token_id` sangat
+  panjang), callback panic `CHAIN_REVERT` — listing tidak jadi, **tanpa kehilangan dana**: deposit tetap
+  di saldo storage seller dan bisa **dipakai untuk listing lain**. Nominal final diukur di TASK-006 (OQ-007).
+  **Catatan koreksi:** "deposit bisa ditarik" **tidak** berlaku untuk deposit tepat `min` — NEP-145
+  menolak `storage_withdraw` bila `total` akan turun di bawah `bounds.min`, jadi deposit minimum tidak
+  pernah bisa ditarik selama akun tetap terdaftar. Ia reusable, bukan withdrawable. (Salah satu alasan
+  `min` diisi `storage_per_sale()`, bukan angka terkecil.)
+- **Pause ditegakkan juga di callback.** `process_listing` mengecek `is_paused` sendiri karena ia
+  receipt terpisah: kontrak bisa di-pause antara tx listing dan callback, dan listing baru tetap
+  "mutasi baru" yang dilarang INV-022 → `CHAIN_PAUSED`. Diuji `test_process_listing_rejected_when_paused`.
+  (`storage_deposit` bawaan derive NEP-145 tidak di-pause-gate; ia hanya menambah saldo, bukan membuat
+  listing — `storage_withdraw` memang harus tetap jalan saat paused.)
 - **Urutan callback belum diuji end-to-end.** `process_listing` mengasumsikan `token` = hasil
   `nft_token` (indeks 0) dan `approved` = hasil `nft_is_approved` (indeks 1), sesuai urutan `.and()`.
   Di unit test callback dipanggil langsung, jadi urutan promise nyata belum terbukti; kalau tertukar,

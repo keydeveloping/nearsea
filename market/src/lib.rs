@@ -16,7 +16,7 @@ use near_sdk::{
     Promise, PromiseError,
 };
 use near_sdk_contract_tools::nft::{
-    ext_nep171, ext_nep178, Nep145Controller, StorageBalanceBounds, Token,
+    ext_nep171, ext_nep178, Nep145Controller, StorageBalanceBounds, Token, TokenId,
 };
 use near_sdk_contract_tools::owner::Owner;
 use near_sdk_contract_tools::pause::Pause;
@@ -51,7 +51,9 @@ pub const GAS_FOR_DUAL_VERIFY: Gas =
     Gas::from_gas(GAS_FOR_NFT_VIEW.as_gas() * 2 + GAS_FOR_PROCESS_LISTING.as_gas());
 
 /// Teks panic kontrak = kode registry, supaya FE memetakan ke kode user yang stabil
-/// (docs/development/error-handling.md §3/§4).
+/// (docs/development/error-handling.md §3/§4). Kegagalan dari library/derive diprefiks dengan kode
+/// registry (`format!("{CHAIN_REVERT}: {e}")`) — pola yang sama dipakai kontrak koleksi
+/// (docs/contracts/nft-collection.md §4): FE mencocokkan prefiks, detail library tetap terbaca di log.
 mod err {
     pub const CHAIN_REVERT: &str = "CHAIN_REVERT";
     pub const CHAIN_PAUSED: &str = "CHAIN_PAUSED";
@@ -241,8 +243,12 @@ impl Market {
 
     /// Hasil dual verification (INV-013 — `#[private]`, hanya kontrak sendiri).
     /// `seller_id` = pemanggil asli `list_nft_for_sale`; predecessor di sini = market.
+    ///
+    /// Callback ini receipt **terpisah** dari `list_nft_for_sale`, jadi ia mengecek pause sendiri:
+    /// kontrak bisa di-pause antara tx listing dan callback, dan listing baru tetap "mutasi baru"
+    /// yang dilarang saat paused (INV-022).
     #[private]
-    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments)] // 2 hasil callback + 6 konteks listing (docs/contracts/market.md §3)
     pub fn process_listing(
         &mut self,
         #[callback_result] token: Result<Option<Token>, PromiseError>,
@@ -254,6 +260,8 @@ impl Market {
         price: U128,
         allowed_buyer: Option<AccountId>,
     ) {
+        Self::assert_not_paused();
+
         let token = match token {
             Ok(Some(token)) => token,
             _ => env::panic_str(err::CHAIN_REVERT),
@@ -281,7 +289,7 @@ impl Market {
                 listed_at: env::block_timestamp(),
             },
         );
-        self.charge_storage(&seller_id, storage_usage_start);
+        self.settle_storage_delta(&seller_id, storage_usage_start);
 
         SingleEvent::new(
             "market_list",
@@ -310,19 +318,12 @@ impl Market {
         assert_one_yocto();
 
         let key = (nft_contract_id.clone(), token_id.clone());
-        let sale = self
-            .sales
-            .get(&key)
-            .unwrap_or_else(|| env::panic_str(err::CHAIN_REVERT));
-        let seller = env::predecessor_account_id();
-        if sale.owner_id != seller {
-            env::panic_str(err::CHAIN_REVERT);
-        }
+        let seller = self.assert_sale_owner(&key);
 
         let storage_usage_start = env::storage_usage();
         self.sales.remove(&key);
         // Storage yang dibebaskan kembali ke saldo seller — ditarik lewat `storage_withdraw`.
-        self.charge_storage(&seller, storage_usage_start);
+        self.settle_storage_delta(&seller, storage_usage_start);
 
         SingleEvent::new(
             "market_delist",
@@ -333,6 +334,28 @@ impl Market {
             },
         )
         .emit();
+    }
+
+    /// NEP-178 receiver: notifikasi tx-1 dari kontrak koleksi ketika seller memanggil
+    /// `nft_approve(market, msg)` (docs/features/marketplace.md §Flow — List langkah 2).
+    /// **Bukan** `#[private]` — pemanggilnya kontrak NFT, bukan market sendiri (INV-013).
+    ///
+    /// Sengaja **tidak** membuat listing (ADR-002): listing hanya lahir dari `list_nft_for_sale` +
+    /// dual verification. Karena method ini tidak menulis state apa pun, notifikasi palsu dari akun
+    /// mana pun tidak punya efek — yang dijaga hanya bentuk payloadnya.
+    pub fn nft_on_approve(
+        &mut self,
+        token_id: TokenId,
+        owner_id: AccountId,
+        approval_id: u32,
+        msg: String,
+    ) {
+        if token_id.is_empty() || owner_id == env::current_account_id() || msg.is_empty() {
+            env::panic_str(err::CHAIN_REVERT);
+        }
+        // Market tidak menyimpan approval, jadi `approval_id` tidak bisa diverifikasi lokal —
+        // nilainya baru diuji saat `list_nft_for_sale` mengecek ulang lewat `nft_is_approved`.
+        let _ = approval_id;
     }
 
     /// Ubah harga in-place. `approval_id` tidak berubah — hanya state harga milik market.
@@ -346,15 +369,12 @@ impl Market {
         }
 
         let key = (nft_contract_id.clone(), token_id.clone());
+        let seller = self.assert_sale_owner(&key);
+
         let mut sale = self
             .sales
             .get(&key)
             .unwrap_or_else(|| env::panic_str(err::CHAIN_REVERT));
-        let seller = env::predecessor_account_id();
-        if sale.owner_id != seller {
-            env::panic_str(err::CHAIN_REVERT);
-        }
-
         let old_price = sale.price_yocto;
         sale.price_yocto = new_price;
         self.sales.insert(&key, &sale);
@@ -399,6 +419,20 @@ impl Market {
         }
     }
 
+    /// Listing wajib ada **dan** pemanggil = `sale.owner_id`; kembalikan seller-nya (INV-012).
+    /// Dipakai `remove_sale` & `update_price` — keduanya mutasi seller dengan aturan otorisasi sama.
+    fn assert_sale_owner(&self, key: &SaleKey) -> AccountId {
+        let sale = self
+            .sales
+            .get(key)
+            .unwrap_or_else(|| env::panic_str(err::CHAIN_REVERT));
+        let seller = env::predecessor_account_id();
+        if sale.owner_id != seller {
+            env::panic_str(err::CHAIN_REVERT);
+        }
+        seller
+    }
+
     /// Deposit terlampir (bila ada) masuk ke saldo storage NEP-145 pemanggil.
     fn credit_attached_storage(&mut self, account_id: &AccountId) {
         let attached = env::attached_deposit();
@@ -419,8 +453,9 @@ impl Market {
         }
     }
 
-    /// Tagih pertumbuhan storage ke pemilik entry; saat entry dihapus, kredit dikembalikan (INV-020).
-    fn charge_storage(&mut self, account_id: &AccountId, storage_usage_start: u64) {
+    /// Selisihkan storage sejak `storage_usage_start` ke pemilik entry: tumbuh → ditagih,
+    /// menyusut (entry dihapus) → dikreditkan kembali ke saldo (INV-020).
+    fn settle_storage_delta(&mut self, account_id: &AccountId, storage_usage_start: u64) {
         Nep145Controller::storage_accounting(self, account_id, storage_usage_start)
             .unwrap_or_else(|e| env::panic_str(&format!("{}: {e}", err::CHAIN_REVERT)));
     }
@@ -560,6 +595,19 @@ mod tests {
 
     // --- init & pause (SEC-CONTRACT-002, SEC-CONTRACT-007) ---
 
+    // market.md §6
+    #[test]
+    fn test_dual_verify_budget_matches_its_parts() {
+        // Anggaran total yang didokumentasikan harus sama dengan penjumlahan komponennya —
+        // supaya tidak ada angka kedua yang bisa menyimpang (nilainya sendiri PROPOSED, TASK-006).
+        assert_eq!(
+            GAS_FOR_DUAL_VERIFY.as_gas(),
+            2 * GAS_FOR_NFT_VIEW.as_gas() + GAS_FOR_PROCESS_LISTING.as_gas()
+        );
+        assert_eq!(GAS_FOR_DUAL_VERIFY, Gas::from_tgas(20));
+    }
+
+    // SEC-CONTRACT-002, INV-020
     #[test]
     fn test_new_sets_owner_and_storage_bounds() {
         let market = new_market();
@@ -570,6 +618,7 @@ mod tests {
         assert_eq!(market.get_supply_sales(), 0);
     }
 
+    // SEC-CONTRACT-007
     #[test]
     fn test_pause_toggles_state() {
         let mut market = new_market();
@@ -584,6 +633,7 @@ mod tests {
 
     // --- listing: dual verification (TC-002 paruh list, INV-007/013, SEC-ORDER-004) ---
 
+    // TC-002 · INV-013 · ADR-002
     #[test]
     fn test_list_creates_sale_after_dual_verification() {
         let mut market = new_market();
@@ -630,6 +680,7 @@ mod tests {
         );
     }
 
+    // TC-002 · INV-013
     #[test]
     #[should_panic(expected = "CHAIN_REVERT")]
     fn test_list_rejected_when_caller_is_not_token_owner() {
@@ -641,6 +692,7 @@ mod tests {
         verify_token(&mut market, TOKEN, PRICE, buyer(), Ok(true));
     }
 
+    // TC-002 · INV-013
     #[test]
     #[should_panic(expected = "CHAIN_REVERT")]
     fn test_list_rejected_when_market_is_not_approved() {
@@ -651,6 +703,7 @@ mod tests {
         verify_token(&mut market, TOKEN, PRICE, seller(), Ok(false));
     }
 
+    // INV-013
     #[test]
     #[should_panic(expected = "CHAIN_REVERT")]
     fn test_list_rejected_when_verification_promise_failed() {
@@ -667,6 +720,7 @@ mod tests {
         );
     }
 
+    // INV-013
     #[test]
     #[should_panic(expected = "CHAIN_REVERT")]
     fn test_list_rejected_when_token_does_not_exist() {
@@ -688,6 +742,7 @@ mod tests {
 
     // --- listing: harga, duplikat, storage, paused (INV-030/007/020/022, TC-013/020) ---
 
+    // TC-013 · INV-030
     #[test]
     fn test_list_accepts_price_exactly_at_minimum() {
         let mut market = new_market();
@@ -705,6 +760,7 @@ mod tests {
         );
     }
 
+    // TC-013 · INV-030
     #[test]
     #[should_panic(expected = "INVALID_PRICE")]
     fn test_list_rejects_price_below_minimum() {
@@ -714,6 +770,7 @@ mod tests {
         let _ = list_token(&mut market, TOKEN, MIN_PRICE_YOCTO - 1);
     }
 
+    // INV-007
     #[test]
     #[should_panic(expected = "CONFLICT_ALREADY_LISTED")]
     fn test_list_rejects_duplicate_listing() {
@@ -722,6 +779,7 @@ mod tests {
         let _ = list_token(&mut market, TOKEN, PRICE);
     }
 
+    // TC-020 · INV-020
     #[test]
     #[should_panic(expected = "CHAIN_REVERT")]
     fn test_list_rejected_without_storage_deposit() {
@@ -730,6 +788,7 @@ mod tests {
         let _ = list_token(&mut market, TOKEN, PRICE);
     }
 
+    // TC-020 · INV-020
     #[test]
     #[should_panic(expected = "CHAIN_REVERT")]
     fn test_list_rejected_when_attached_deposit_below_minimum() {
@@ -745,6 +804,7 @@ mod tests {
         );
     }
 
+    // INV-013
     #[test]
     #[should_panic(expected = "CHAIN_REVERT")]
     fn test_list_rejects_approval_id_out_of_u32_range() {
@@ -761,6 +821,7 @@ mod tests {
         );
     }
 
+    // TC-012 · INV-022
     #[test]
     #[should_panic(expected = "CHAIN_PAUSED")]
     fn test_list_rejected_when_paused() {
@@ -771,6 +832,7 @@ mod tests {
         let _ = list_token(&mut market, TOKEN, PRICE);
     }
 
+    // INV-026
     #[test]
     fn test_list_private_listing_records_allowed_buyer() {
         let mut market = new_market();
@@ -796,8 +858,71 @@ mod tests {
         );
     }
 
+    // TC-012 · INV-022
+    #[test]
+    #[should_panic(expected = "CHAIN_PAUSED")]
+    fn test_process_listing_rejected_when_paused() {
+        let mut market = new_market();
+        fund_storage(&mut market, &seller());
+        let _ = list_token(&mut market, TOKEN, PRICE);
+
+        // Pause terjadi antara tx listing dan callback — callback adalah receipt terpisah, jadi ia
+        // wajib menegakkan INV-022 sendiri.
+        Pause::set_is_paused(&mut market, true);
+        verify_token(&mut market, TOKEN, PRICE, seller(), Ok(true));
+    }
+
+    // --- nft_on_approve — NEP-178 receiver (INV-013, ADR-002) ---
+
+    // INV-013 · ADR-002
+    #[test]
+    fn test_nft_on_approve_accepts_valid_payload() {
+        let mut market = new_market();
+
+        run(&nft(), 0);
+        market.nft_on_approve(TOKEN.to_string(), seller(), 7, PRICE.to_string());
+
+        assert_eq!(market.get_supply_sales(), 0);
+    }
+
+    // ADR-002
+    #[test]
+    fn test_nft_on_approve_does_not_create_listing() {
+        let mut market = new_market();
+
+        // Tx-1 mengirim msg harga — market **tidak** boleh membuat listing dari notifikasi ini.
+        run(&nft(), 0);
+        market.nft_on_approve(TOKEN.to_string(), seller(), 7, PRICE.to_string());
+
+        assert!(
+            market.get_sale(nft(), TOKEN.to_string()).is_none(),
+            "nft_on_approve tidak boleh membuat listing (ADR-002)"
+        );
+    }
+
+    // INV-013
+    #[test]
+    #[should_panic(expected = "CHAIN_REVERT")]
+    fn test_nft_on_approve_rejects_empty_payload() {
+        let mut market = new_market();
+
+        run(&nft(), 0);
+        market.nft_on_approve(TOKEN.to_string(), seller(), 7, String::new());
+    }
+
+    // INV-013
+    #[test]
+    #[should_panic(expected = "CHAIN_REVERT")]
+    fn test_nft_on_approve_rejects_self_as_owner() {
+        let mut market = new_market();
+
+        run(&nft(), 0);
+        market.nft_on_approve(TOKEN.to_string(), market_id(), 7, PRICE.to_string());
+    }
+
     // --- remove_sale (TC-044, INV-012/022) ---
 
+    // TC-044 · INV-012
     #[test]
     fn test_remove_sale_deletes_listing_and_emits_delist() {
         let mut market = listed_market();
@@ -818,6 +943,7 @@ mod tests {
         );
     }
 
+    // TC-044 · INV-020
     #[test]
     fn test_remove_sale_releases_storage_to_seller() {
         let mut market = listed_market();
@@ -839,6 +965,7 @@ mod tests {
         );
     }
 
+    // TC-044 · SEC-CONTRACT-001
     #[test]
     #[should_panic(expected = "Requires attached deposit of exactly 1 yoctoNEAR")]
     fn test_remove_sale_requires_one_yocto() {
@@ -848,6 +975,7 @@ mod tests {
         market.remove_sale(nft(), TOKEN.to_string());
     }
 
+    // TC-044 · INV-012
     #[test]
     #[should_panic(expected = "CHAIN_REVERT")]
     fn test_remove_sale_rejected_for_non_owner() {
@@ -857,6 +985,7 @@ mod tests {
         market.remove_sale(nft(), TOKEN.to_string());
     }
 
+    // INV-012
     #[test]
     #[should_panic(expected = "CHAIN_REVERT")]
     fn test_remove_sale_rejected_for_unknown_listing() {
@@ -866,6 +995,7 @@ mod tests {
         market.remove_sale(nft(), TOKEN.to_string());
     }
 
+    // TC-012 · INV-022
     #[test]
     fn test_remove_sale_allowed_while_paused() {
         let mut market = listed_market();
@@ -879,6 +1009,7 @@ mod tests {
 
     // --- update_price (INV-030, INV-012) ---
 
+    // INV-012
     #[test]
     fn test_update_price_changes_price_in_place() {
         let mut market = listed_market();
@@ -907,6 +1038,7 @@ mod tests {
         );
     }
 
+    // INV-030
     #[test]
     #[should_panic(expected = "INVALID_PRICE")]
     fn test_update_price_rejects_below_minimum() {
@@ -916,6 +1048,7 @@ mod tests {
         market.update_price(nft(), TOKEN.to_string(), U128(MIN_PRICE_YOCTO - 1));
     }
 
+    // INV-012
     #[test]
     #[should_panic(expected = "CHAIN_REVERT")]
     fn test_update_price_rejected_for_non_owner() {
@@ -925,6 +1058,7 @@ mod tests {
         market.update_price(nft(), TOKEN.to_string(), U128(PRICE * 2));
     }
 
+    // TC-012 · INV-022
     #[test]
     #[should_panic(expected = "CHAIN_PAUSED")]
     fn test_update_price_rejected_when_paused() {
@@ -937,6 +1071,7 @@ mod tests {
 
     // --- view listing (§5) ---
 
+    // market.md §5
     #[test]
     fn test_get_sales_pagination_and_supply() {
         let mut market = new_market();

@@ -103,7 +103,6 @@ Parameter offer (DIPUTUSKAN ronde 4 & 6):
 2. Seller sign cancel_bundle { bundle_id } — attach 1 yocto.
 3. Kontrak: predecessor == bundle.seller; status bundle → CANCELLED; membership dihapus
    (market **tidak** mencabut approval — NEP-178 owner-only, §2a [contracts/market.md](../contracts/market.md))
-   (market sebagai approved account).
 4. Semua token bebas di-list/di-offer terpisah kembali (INV-028 berhenti berlaku).
 5. `cancel_bundle` tetap diizinkan saat paused (INV-022).
 ```

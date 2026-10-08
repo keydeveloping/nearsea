@@ -172,7 +172,7 @@ MANIPULASI ORDER (tujuan penyerang: bayar < nilai / ambil aset tanpa bayar / kur
 │   ├── B1 self-buy (beli milik sendiri) .............. INV-023 → revert
 │   ├── B2 bypass private listing ..................... INV-026 → hanya allowed_buyer (TC-011)
 │   ├── B3 replay approval_id lama .................... INV-011/016 → cek ulang tiap settle
-│   ├── B4 forge nft_on_approve (kontrak jahat) ....... INV-013 → payload NEP-178 + predecessor = NFT sah
+│   ├── B4 forge nft_on_approve (kontrak jahat) ....... ADR-002 → method tanpa state; listing hanya lahir dari list_nft_for_sale + dual verification (INV-013)
 │   └── B5 beli listing stale ......................... INV-016 → dual verification (TC-006)
 ├── C. Manipulasi state & race
 │   ├── C1 double-buy listing sama .................... INV-007/008 → optimistic removal + unique key (TC-016/017)

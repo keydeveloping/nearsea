@@ -95,8 +95,8 @@
 | `storage_withdraw` | pemilik saldo storage | 1 yocto | NEP-145; tetap diizinkan saat `paused` (INV-022) | — | ~5 PROPOSED |
 | `withdraw_fees` | owner (MVP) / DAO (mainnet) | 1 yocto | hanya dana fee, **bukan escrow** (INV-005) | ⏳ open-by-design | PROPOSED |
 | `pause` / `unpause` | owner (MVP) / guardian `pause_callers` (mainnet, pause saja) | 1 yocto | — | `market_pause` / `market_unpause` | ~3 PROPOSED |
-| `nft_on_approve` (masuk) | `predecessor` = kontrak NFT sah | 1 yocto | payload NEP-178 valid; **bukan** `#[private]` (INV-013) | — | PROPOSED |
-| `process_listing` / `resolve_purchase` / `nft_resolve_transfer` (callback) | kontrak sendiri (`#[private]`) | — | predecessor = self; state konsisten (INV-013) | — | 115 (resolve) FACT |
+| `nft_on_approve` (masuk) | siapa pun (tidak ada state ditulis) | 1 yocto (dikirim derive koleksi) | bentuk payload valid; **bukan** `#[private]` (INV-013); **tidak** membuat listing (ADR-002) → notifikasi palsu tak berefek | — | minimal |
+| `process_listing` / `resolve_purchase` / `nft_resolve_transfer` (callback) | kontrak sendiri (`#[private]`) | — | predecessor = self; state konsisten (INV-013); `process_listing` menegakkan pause sendiri (receipt terpisah — INV-022) | — | 115 (resolve) FACT |
 
 - **Catatan**: `assert_one_yocto()` hanya untuk mutasi seller/buyer berbasis state (SEC-CONTRACT-001); method yang menerima storage (`list_nft_for_sale`, `create_bundle`) **tidak** memakai 1 yocto.
 - Pause memblokir semua mutasi baru KECUALI `storage_withdraw`, `cancel_offer`/`cancel_bundle`, `remove_sale`/`remove_stale_listing` (jalur refund/aset — INV-022).
