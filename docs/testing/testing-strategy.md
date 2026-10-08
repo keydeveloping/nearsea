@@ -150,7 +150,7 @@ Aturan:
 | Target | Input | Properti yang diasersi |
 |---|---|---|
 | `payout_parse` | byte arbitrer → daftar (receiver, amount) | tidak panic; duplikat di-merge; penerima 1..10 (INV-003) |
-| `fee_split` | `(price, fee_bps, royalti[])` | `fee_bps ≤ MAX_FEE_BPS`; `sum(payout) ≤ price − fee`; sisa ∈ {0,1} yocto (INV-002/004) |
+| `fee_split` | `(price, fee_bps, royalti[])` | `fee_bps ≤ MAX_FEE_BPS`; `sum(payout) ≤ price − fee` (INV-002/004) |
 | `u128_arith` | pasangan u128 + operasi | tidak overflow/panic; string↔u128 round-trip |
 
 ```text
@@ -196,7 +196,7 @@ fuzz/
 |---|---|
 | Mint → list → buy happy path | INV-001, INV-011 |
 | Buy saat token sudah terjual / stale (refund) | INV-008, INV-016 |
-| Payout gagal (kosong / > harga / > 10 penerima / sisa > 1 yocto) | INV-001..003 |
+| Payout gagal (kosong / > harga−fee / > 10 penerima / amount 0) | INV-001..003 |
 | Royalti di batas (0%, 10%, pembulatan tak rata) + self-buy ditolak | INV-002, INV-023 |
 | Remove/update listing oleh bukan owner (revert) | INV-012 |
 | Storage deposit kurang saat listing | INV-020 |
@@ -213,7 +213,10 @@ fuzz/
 | **Double-submit pembeli sama / double-accept offer → tx kedua revert** | INV-007, INV-008, INV-009 (TC-017/018) |
 | **Token dalam bundle aktif di-list/di-offer terpisah → ditolak** | INV-028 (TC-043) |
 | Cancel listing/offer/bundle → revoke approval + refund exact | INV-012, INV-005, INV-028 (TC-044..046) |
-| `withdraw_fees` owner-only (non-owner revert) | SEC-CONTRACT-012 (TC-047) |
+| Owner-only config: `update_fee_bps` (≤cap) / `update_treasury` — non-owner revert | SEC-CONTRACT-012, INV-004 (TC-047) |
+| **Payout invalid (0/>10 penerima, amount 0, Σ > harga−fee) → refund penuh + listing dipulihkan** | INV-002/003 (TC-003) |
+| **Stale (ownership pindah ATAU approval dicabut) → refund penuh + `market_stale_detected`** | INV-016 (TC-006, TC-053) |
+| **Pembelian nyangkut → `recover_stuck_purchase` permissionless refund penuh setelah jeda** | INV-031 (TC-054) |
 | Callback `nft_on_approve` dipalsukan → revert (#[private]) | INV-013 (TC-048) |
 | Verify custom-challenge fallback + body cap + CORS + health | SEC-AUTH-002, SEC-API-001, SEC-FE-001 (TC-049..052) |
 

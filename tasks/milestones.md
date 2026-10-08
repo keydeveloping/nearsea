@@ -53,6 +53,21 @@
   race TC-016/017, TC-022, TC-048, angka gas penuh — butuh TASK-005/006. Sisa slice M1: TASK-005 → 006,
   dan jalur FE 007 → 008.
 
+- **Status TASK-005 (2026-10-08, ronde 23): ✅ `done` (kode).** Jalur settlement di `market/src/lib.rs`:
+  `buy` (tulis `pending_purchases` sebelum optimistic removal — INV-031) → `process_purchase` (dual
+  verification saat settle; stale dua kasus INV-016 → refund + event; verifikasi tak pasti → refund +
+  restore `Sale`) → `nft_transfer_payout` (1 yocto, `max_len_payout=10`) → `resolve_purchase` (validasi
+  payout UNTRUSTED `1..=10` penerima / `amount>0` / `Σ ≤ harga−fee`; fee → treasury, royalti → receiver,
+  residual → seller, kelebihan deposit → buyer; gagal → refund penuh + restore), `recover_stuck_purchase`
+  (permissionless, INV-031), `update_fee_bps`/`update_treasury`, `fee_bps`/`treasury` di init. Bukti:
+  **116 test** workspace (41 baru) — Σ keluar == Σ masuk exact, 6 jalur payout invalid → refund, stale
+  dua kasus, recovery dengan/tanpa restore, gas worst case; `fmt`/`clippy -D warnings` bersih; wasm 239 KB.
+  **Dua koreksi dokumen**: (1) `withdraw_fees` dihapus — fee masuk treasury saat settlement
+  ([contracts/market.md](../docs/contracts/market.md) §4a; TC-047 dialihkan ke `update_fee_bps`/`update_treasury`);
+  (2) aturan `sisa ≤1 yocto` (INV-002) dibatalkan — residual = proceeds seller, bukan dust.
+  **Belum diklaim**: race TC-016/017, TC-022, TC-048, angka gas terukur — butuh TASK-006. Sisa slice M1:
+  TASK-006 (suite sandbox), jalur FE 007 → 008.
+
 ## M1+ — MVP completion (lanjutan eksplisit, bukan dibuang)
 
 - Sisa fitur MVP lama: offers (009), private listing + bundle (010), factory (012), notifikasi (015),

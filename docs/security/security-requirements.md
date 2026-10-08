@@ -32,7 +32,7 @@
 | SEC-CONTRACT-002 | `#[init]` + PanicOnDefault; init hanya owner valid | init takeover | smart-contract-security-architecture §9 | TC-001 | P0 | MVP | contract | M1 | DECIDED |
 | SEC-CONTRACT-003 | Callback `#[private]` + predecessor checks; `nft_on_approve` memvalidasi payload NEP-178 | malicious callback | INV-013 | TC-048 | P0 | MVP | contract | M1 | DECIDED |
 | SEC-CONTRACT-004 | `MAX_FEE_BPS` constant (≤500 = cap), `fee_bps` default 200 (2%) ≤ cap — perubahan hanya via governance ADR-013 | owner drains via fee | INV-004 | TC-005, TC-015 | P0 | MVP | contract | M1 | DECIDED |
-| SEC-CONTRACT-005 | Payout ≤10 penerima, sum ≤ harga−fee, sisa ≤1 yocto, checked math | accounting bug | INV-002/003 | TC-003, TC-005, TC-015 | P0 | MVP | contract | M1 | DECIDED |
+| SEC-CONTRACT-005 | Payout ≤10 penerima, setiap amount > 0, Σ ≤ harga−fee, checked math | accounting bug | INV-002/003 | TC-003, TC-005, TC-015 | P0 | MVP | contract | M1 | DECIDED |
 | SEC-CONTRACT-006 | Verifikasi build: **reproducible build (NEP-330)** — publish `contract_source_metadata`, verifikasi reproduksi via Docker/SourceScan + hash CI | artifact swap | smart-contract-security-architecture §2b | `near view … contract_source_metadata` + build ulang | P1 | mainnet gate | infra | M4 | DECIDED |
 | SEC-CONTRACT-007 | Pausable: blokir mutasi, izinkan cancel/withdraw; teruji | emergency | INV-022 | TC-012 | P0 | MVP | contract | M1 | DECIDED |
 | SEC-CONTRACT-008 | Storage layout dokumentasi per release; persistent prefix stabil | upgrade state korup | smart-contract-security-architecture §2 | review release | P1 | MVP | contract | M1 | PROPOSED |

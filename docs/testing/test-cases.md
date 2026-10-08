@@ -290,11 +290,17 @@ Steps: 1) seller `cancel_bundle` 2) cek approval ketiga token 3) cek bundle stat
 Expected: approval ketiga token false; bundle hilang; event `market_bundle_cancel`; token bebas di-list lagi.
 Layer: sandbox | Invariant: INV-028
 
-### TC-047 — withdraw_fees owner-only
-Precondition: 2 penjualan sukses (fee terkumpul di kontrak); treasury address terisi.
-Steps: 1) non-owner panggil `withdraw_fees` 2) owner panggil `withdraw_fees` 3) cek saldo treasury.
-Expected: non-owner revert; owner sukses — fee pindah exact ke treasury; event `treasury_withdraw`.
-Layer: sandbox | Invariant: SEC-CONTRACT-012 (owner-only MVP)
+### TC-047 — Owner-only config (fee & treasury)
+
+Precondition: market ter-deploy; owner key diketahui; treasury custom tersedia.
+Steps: 1) non-owner panggil `update_fee_bps(500)` → revert 2) owner panggil `update_fee_bps(500)` → sukses, `get_fee_bps() == 500` 3) owner panggil `update_fee_bps(501)` → revert (cap INV-004) 4) non-owner panggil `update_treasury(x)` → revert 5) owner panggil `update_treasury(treasury)` → sukses, `get_treasury() == treasury`.
+Expected: semua aksi non-owner revert; owner sukses dengan batas cap; event `fee_update` / `treasury_update` ter-emit.
+Layer: sandbox | Invariant: SEC-CONTRACT-012 (owner-only MVP), INV-004
+
+> **Koreksi ronde 23:** TC ini sebelumnya menguji `withdraw_fees` (fee terakumulasi di kontrak, ditarik owner).
+> Model itu **dibatalkan** — fee ditransfer langsung ke treasury saat settlement, jadi tidak ada dana fee
+> yang tertahan ([contracts/market.md](../contracts/market.md) §4a). Cakupan owner-only dialihkan ke
+> `update_fee_bps`/`update_treasury`, yang memang satu-satunya aksi owner finansial di kontrak market M1.
 
 ### TC-048 — Callback `nft_on_approve` dipalsukan
 Precondition: kontrak penyerang ter-deploy di sandbox.
@@ -338,7 +344,7 @@ Steps: 1) buyer `buy` dengan deposit penuh 2) callback gagal → cek `pending_pu
 Expected: (1) entri pending ada setelah callback gagal; (2) `recover_stuck_purchase` sebelum delay → revert (terlalu dini); (3) setelah delay → buyer menerima refund **penuh**, Sale dipulihkan, entri pending dihapus; event `market_purchase_recovered`. Buyer tidak bergantung pada owner/governance.
 Layer: sandbox | Invariant: INV-031
 
-> **Cakupan slice M1 (TASK-006):** TC yang runnable tanpa M1+ = TC-001 (mint), TC-002 (list&buy), TC-013 (harga < min), TC-016 (race 20 pembeli), TC-017 (double-submit), TC-020 (storage kurang), TC-022 (harga berubah), TC-044 (remove_sale), TC-047 (withdraw_fees owner-only), TC-048 (callback dipalsukan), **TC-053** (stale approval), **TC-054** (recover stuck). TC-003/TC-012 sebagian (butuh setup khusus / subset market-pause).
+> **Cakupan slice M1 (TASK-006):** TC yang runnable tanpa M1+ = TC-001 (mint), TC-002 (list&buy), TC-003 (payout invalid → refund), TC-013 (harga < min), TC-016 (race 20 pembeli), TC-017 (double-submit), TC-020 (storage kurang), TC-022 (harga berubah), TC-044 (remove_sale), TC-047 (owner-only config fee/treasury), TC-048 (callback dipalsukan), **TC-053** (stale approval), **TC-054** (recover stuck). TC-012 sebagian (subset market-pause).
 > **Deferred ke M1+:** TC-004/005/008/018/019/041 (offers), TC-009/010/011/014/015/043/046 (bundle/private), TC-006 (stale ownership — cleanup), TC-007/021 (launchpad), TC-023/024 (notifikasi), TC-025..TC-039 (API/admin/profil/report), TC-040 (E2E penuh, butuh factory+seed), TC-049..TC-052 (API/CORS/health).
 
 > **Sudah dibuktikan di level unit (bukan pengganti sandbox):** TC-001 (mint → transfer → events) dan
@@ -346,7 +352,7 @@ Layer: sandbox | Invariant: INV-031
 > royalti ≤10% (dust + cap diuji), wajib 1 yocto, menolak pengirim tanpa approval, dan approval lama
 > invalid setelah transfer (INV-011). Lihat 11 test `test_transfer_payout_*` di `contract/src/lib.rs`
 > (TASK-003, ronde 21). Yang **belum** dibuktikan: validasi payout di sisi **market** (≥1 penerima,
-> Σ ≤ harga−fee, sisa ≤1 yocto, refund saat invalid) — itu bagian sandbox TC-003 milik TASK-006,
+> Σ ≤ harga−fee, amount > 0, refund saat invalid) — itu bagian sandbox TC-003 milik TASK-006,
 > bersama angka gas 15 Tgas.
 
 > **Sudah dibuktikan di level unit untuk paruh listing (ronde 22, TASK-004):** 32 test di

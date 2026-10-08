@@ -34,7 +34,7 @@ Milestone: M0 | M1 | M2 | M3 | M4
 | TASK-002 | Kontrak NFT: NEP-171/177/178/181/297 + mint + events (near-sdk-contract-tools) + **`set_phases` minimal (satu fase publik)** — wajib agar `nft_mint` bisa dipanggil (mint = launchpad-aware, INV-017) | contract | P0 | 001 | features/marketplace + contracts/nft-collection.md | done | 4 | `cargo test` hijau; mint + transfer + events lolos TC-001 | M1 |
 | TASK-003 | Kontrak NFT: royalty NEP-199 (cap 10%) | contract | P0 | 002 | features/marketplace | done | 1 | Payout royalti ≤10% teruji (INV-003/027) | M1 |
 | TASK-004 | Kontrak market: storage NEP-145 + listing 2-tx + dual verification | contract | P0 | 002 | features/marketplace | done | 4 | List/cancel + storage deposit lolos (INV-020, TC-002) | M1 |
-| TASK-005 | Kontrak market: buy + nft_transfer_payout + resolve/refund (+ private listing & bundle — dgn TASK-010) | contract | P0 | 004 | features/marketplace.md + payments.md | todo | 5 | Buy sukses + refund + race 20 pembeli lolos (INV-001/016, TC-003/016) | M1 |
+| TASK-005 | Kontrak market: buy + nft_transfer_payout + resolve/refund (+ private listing & bundle — dgn TASK-010) | contract | P0 | 004 | features/marketplace.md + payments.md | done | 5 | Buy sukses + refund + race 20 pembeli lolos (INV-001/016, TC-003/016) | M1 |
 | TASK-006 | Sandbox tests 2-kontrak **subset slice**: mint->list->buy->refund + race (TC-001/002/013/016/017/020/022/044/047/048) + INV slice (001..016, 023, 030, 031) | contract | P0 | 002-005 | testing/test-cases.md (Slice M1) | todo | 4 | Suite sandbox hijau; semua INV **slice** punya test (INV M1+ di-defer eksplisit) | M1 |
 | TASK-007 | Frontend: connect wallet (near-connect) | frontend | P0 | 001 | features/auth | todo | 2 | Connect/disconnect + banner network jalan di testnet | M1 |
 | TASK-008 | Frontend: browse/listings/buy UI (Next.js + Tailwind, EN + i18n) — **tanpa prasyarat branding** (default Tailwind) | frontend | P0 | 007 | features/marketplace | todo | 5 | Browse->list->buy end-to-end via UI (jalur emas Playwright) | M1 |
@@ -125,6 +125,31 @@ Milestone: M0 | M1 | M2 | M3 | M4
 > di [contracts/market.md](../docs/contracts/market.md) §2a + 5 dokumen lain disinkronkan. **Belum diklaim**:
 > paruh **buy** TC-002, TC-016/017 (race), TC-022, TC-048 (callback palsu), dan angka gas penuh — butuh
 > dua kontrak nyata (TASK-005/006). `fee_bps`/`treasury` di init juga ditunda ke TASK-005 (hanya dipakai settlement).
+
+> **TASK-005 `done` (ronde 23):** jalur settlement market di `market/src/lib.rs` — `buy` (tulis
+> `pending_purchases` **sebelum** optimistic removal, INV-031) → callback `process_purchase` `#[private]`
+> (dual verification saat settle; **stale dua kasus** INV-016 → refund + `market_stale_detected`; verifikasi
+> tak pasti → refund + restore `Sale`) → `nft_transfer_payout` (1 yocto, `max_len_payout = 10`) → callback
+> `resolve_purchase` `#[private]` (validasi payout UNTRUSTED: `1..=10` penerima, `amount > 0`,
+> `Σ ≤ harga−fee`; distribusi fee → treasury, royalti → receiver, residual → seller, kelebihan deposit →
+> buyer; payout invalid/promise gagal → refund penuh + restore `Sale`), `recover_stuck_purchase` +
+> `process_recovery` (permissionless, jeda `RECOVERY_DELAY_BLOCKS`), `update_fee_bps`/`update_treasury`
+> (owner-only, 1 yocto, cap `MAX_FEE_BPS`), `fee_bps`/`treasury` di init, view `get_fee_bps`/`get_treasury`/
+> `get_pending_purchase`, event `market_sale`/`market_stale_detected`/`market_purchase_recovered`/
+> `fee_update`/`treasury_update`. **Bukti**: 41 test baru (116 test workspace) — happy path dengan angka
+> fee/royalti/seller exact (Σ keluar == Σ masuk), kelebihan deposit refund, private listing, self-buy,
+> deposit kurang, `CONFLICT_SOLD` (sale/pending), stale dua kasus, verifikasi tak pasti, 6 jalur payout
+> invalid → refund, recovery permissionless (refund + restore / tanpa restore bila token pindah), paused,
+> dan anggaran gas `resolve_purchase` worst case. Gate lokal hijau: `fmt --check`, `clippy -D warnings`
+> (0 warning), `test --workspace`, build wasm 239 KB. **Dua koreksi dokumen (temuan saat implementasi):**
+> (1) **`withdraw_fees` dihapus** — fee ditransfer langsung ke treasury saat settlement (kontrak tidak
+> pernah memegang fee; menghapus temuan M7 + honeypot saldo) → didokumentasikan di
+> [contracts/market.md](../docs/contracts/market.md) §4a + 8 dokumen lain disinkronkan, TC-047 dialihkan
+> ke `update_fee_bps`/`update_treasury`; (2) **aturan `sisa ≤ 1 yocto` (INV-002) dibatalkan** — koleksi
+> mengembalikan **hanya royalti**, market menambahkan seller sebagai residual, jadi `harga − fee − Σpayout`
+> = proceeds seller (wajar besar), bukan dust → INV-002 dikoreksi + ~15 dokumen disinkronkan. **Belum
+> diklaim**: race TC-016/017 versi sandbox, TC-022, TC-048, dan angka gas terukur — semuanya butuh dua
+> kontrak nyata (TASK-006).
 
 > **TASK-035 (dibuat ronde 18, TASK-001):** `braces <=3.0.3` (high, ReDoS) masuk lewat
 > `eslint-config-next → @next/eslint-plugin-next → fast-glob → micromatch`. Versi terbaru `braces` = 3.0.3

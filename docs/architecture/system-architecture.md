@@ -200,7 +200,7 @@ Buyer        Market Contract        NFT Contract          Treasury   Seller/Roya
   │               │   (1 yocto + 15 Tgas)                     │            │
   │               │◄─ Payout object (seller+royalti) ─────────│            │
   │               │ resolve_purchase (#[private], 115 Tgas)   │            │
-  │               │  validasi: ≤10 penerima, Σpayout≤harga−fee, sisa≤1 yocto (INV-002/003)
+  │               │  validasi: ≤10 penerima, amount>0, Σpayout≤harga−fee (INV-002/003)
   │               │─ fee 2% (fee_bps=200) ─────────────────►│            │
   │               │─ proceeds seller + royalti ──────────────────────────►│
   │◄─ NFT pindah + receipt final ──────────────────────────────────────────│

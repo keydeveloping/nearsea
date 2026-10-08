@@ -60,7 +60,7 @@ API-centric (alasan di atas).
 | Manipulasi sesi admin untuk "menyetujui" refund | Escrow offer keluar hanya via `cancel_offer`/`accept_offer` yang menegakkan `predecessor_account_id` + tujuan hardcoded ke `offer.buyer_id` (INV-005/010) — bukan lewat API. |
 | Ganti tampilan harga di FE | FE wajib view-call on-chain sebelum sign (SEC-ORDER-003); harga palsu tidak lolos ke payload tx. |
 
-**Hasil**: penyerang maksimal mengubah profil/report (data non-uang). **Boundary yang memutus**: #2 (kontrak = gatekeeper), #7 (payout divalidasi ≤ harga−fee, ≤10 penerima, sisa ≤1 yocto), #5 (auth tidak memberi kunci). Varian kontrak NFT jahat (mengirim `nft_on_approve` palsu / payout bohong) diputus boundary #7 dengan kontrol yang sama (INV-013) — attack tree lengkap: trust-boundaries.md §12.
+**Hasil**: penyerang maksimal mengubah profil/report (data non-uang). **Boundary yang memutus**: #2 (kontrak = gatekeeper), #7 (payout divalidasi ≤ harga−fee, ≤10 penerima, amount > 0), #5 (auth tidak memberi kunci). Varian kontrak NFT jahat (mengirim `nft_on_approve` palsu / payout bohong) diputus boundary #7 dengan kontrol yang sama (INV-013) — attack tree lengkap: trust-boundaries.md §12.
 
 ## Metrik & kriteria sukses
 

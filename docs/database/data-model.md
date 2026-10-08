@@ -305,7 +305,7 @@ LaunchpadPhase
 | Offer.amount | ≥ 0.01 Ⓝ saat dibuat | INV-030 |
 | Listing.price | ≥ 0.01 Ⓝ (non-bundle) | INV-030 |
 | Bundle → BundleItem | 1 ≤ N ≤ 10 item | INV-021 |
-| Sale.payout | 1..10 penerima unik; sum ≤ price − fee; sisa ≤ 1 yocto | INV-002, INV-003 |
+| Sale.payout | 1..10 penerima unik; setiap amount > 0; Σ ≤ price − fee | INV-002, INV-003 |
 | Sale.payout royalty | royalti per token ≤ 10% harga wajar token | INV-027 |
 | Token dalam Bundle AKTIF | tidak boleh di-list/di-offer terpisah | INV-028 |
 | LaunchpadPhase | berurutan, tidak overlap (maks 1 aktif) | INV-029 |
@@ -374,7 +374,7 @@ Lihat tabel "Kebenaran sumber" di atas (bagian awal dokumen) — tidak diulang d
 **Invariant PayoutSplit:**
 
 - `1 ≤ len(distributions) ≤ 10` dan `receiver_id` unik (INV-003, INV-021).
-- `sum(distributions.amount) ≤ price − fee`; sisa pembulatan ∈ {0, 1} yocto (INV-002).
+- `fee + Σroyalti + seller == price` (internal, exact); `Σpayout ≤ price − fee` (INV-001/002). Residual `price − fee − Σpayout` → seller (tanpa batas atas — koreksi ronde 23).
 - `fee = floor(price × fee_bps / 10_000)` dengan `fee_bps = 200` (2%), cap `MAX_FEE_BPS = 500` (INV-004).
 - Semua `amount` = string desimal yoctoNEAR (tidak pernah JSON `number`).
 - Pada bundle: `distributions` = hasil merge royalti **per token dijumlahkan** tanpa cap agregat (INV-027), penerima unik ≤ 10.

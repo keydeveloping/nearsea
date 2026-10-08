@@ -244,7 +244,7 @@ AC lengkap per fitur: [testing/acceptance-criteria.md](./testing/acceptance-crit
 | Payout penerima | **≤ 10 akun** (setelah merge) | FACT/keputusan | INV-003/021; batas gas sehat |
 | Item bundle | **≤ 10 token** | Keputusan | INV-021 (batas berbeda dari 10 penerima) |
 | Royalti per token | **≤ 10%** (cap inklusif) | Keputusan | INV-027; agregat bundle tanpa cap |
-| Sisa pembulatan payout | **≤ 1 yocto** | Keputusan | INV-002; di atas itu → tolak + refund |
+| Plafon payout | **Σpayout ≤ harga − fee** | Keputusan | INV-002; pelanggaran → tolak + refund. Residual (harga − fee − Σpayout) → seller, tanpa batas atas |
 | Harga min listing & offer | **0.01 Ⓝ** = `10000000000000000000000` yocto | Keputusan | INV-030 |
 | Fee platform | **2%** (`fee_bps=200`), cap `MAX_FEE_BPS=500` | Keputusan | ADR-005 |
 | Durasi offer default | **7 hari** (custom diperbolehkan) | Keputusan | INV-024 |
@@ -374,7 +374,7 @@ AC lengkap per fitur: [testing/acceptance-criteria.md](./testing/acceptance-crit
 
 ## 20. Contoh Terhitung End-to-End — Penjualan 10 Ⓝ
 
-> Menyatukan jalur list → buy → payout dalam satu contoh angka. **Aturan bisnis terkunci**: fee 2%, royalti ≤10% per token, payout ≤10 penerima, sisa ≤1 yocto. Semua nilai = **string yoctoNEAR**; `1 Ⓝ = 1000000000000000000000000`.
+> Menyatukan jalur list → buy → payout dalam satu contoh angka. **Aturan bisnis terkunci**: fee 2%, royalti ≤10% per token, payout ≤10 penerima (amount > 0, Σ ≤ harga−fee). Semua nilai = **string yoctoNEAR**; `1 Ⓝ = 1000000000000000000000000`.
 
 **Skenario**: Alice (seller) menjual token `C2.101` ke Bob (buyer) seharga `10 Ⓝ`. Koleksi `C2` punya royalti 5% ke `creatorX` + 2.5% ke `creatorY`. Fee platform 2%.
 
@@ -396,8 +396,7 @@ AC lengkap per fitur: [testing/acceptance-criteria.md](./testing/acceptance-crit
 | Plafon payout | — | `harga − fee` | `9800000000000000000000000` |
 | Royalti `creatorX` | 5% (500 bps) | `floor(10 Ⓝ × 500 / 10000)` | `500000000000000000000000` |
 | Royalti `creatorY` | 2.5% (250 bps) | `floor(10 Ⓝ × 250 / 10000)` | `250000000000000000000000` |
-| Seller (Alice, residual) | — | `plafon − Σroyalti` | `9050000000000000000000000` |
-| **Sisa pembulatan** | — | `plafon − Σpayout` | **0** (≤1 yocto ✓) |
+| **Seller (residual)** | — | `plafon − Σpayout` | `9050000000000000000000000` |
 
 - Verifikasi: `fee + royaltiX + royaltiY + seller = 0.2 + 0.5 + 0.25 + 9.05 = 10 Ⓝ` ✓.
 - Penerima = 4 (Alice + creatorX + creatorY + treasury ≤ 10 ✓).

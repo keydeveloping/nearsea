@@ -53,7 +53,7 @@
 - `assert_one_yocto()` pada semua mutasi seller (remove/update listing, withdraw).
 - Callback (`resolve_purchase`, `process_listing`, dst.) selalu `#[private]`.
 - Otorisasi via `predecessor_account_id` (bukan signer) untuk pemanggil langsung.
-- Validasi payout: ≤ 10 penerima, total ≤ harga, sisa 0..1 yocto.
+- Validasi payout: ≤ 10 penerima, setiap amount > 0, Σ ≤ harga − fee.
 - Dual verification saat listing (ownership + approval) — cegah listing NFT milik orang lain.
 - Storage pre-deposit (NEP-145) — kontrak tak pernah menanggung storage user.
 - `overflow-checks = true` pada profile.release; aritmetika nilai pakai checked ops.
@@ -88,7 +88,7 @@
 | T-04 | Session theft / abuse | JWT TTL 15m + rotasi refresh; admin tanpa silent refresh | API | SEC-AUTH-003/006 |
 | T-05 | Owner key compromise | key hanya di VPS 600; mainnet Sputnik DAO 2-of-3 + timelock | Kunci/governance | SEC-KEY-001/002 |
 | T-06 | Upgrade ke kode jahat | reproducible build NEP-330 + timelock + hash publish | Kontrak | SEC-CONTRACT-006/012 |
-| T-07 | Accounting/payout salah | INV-001..004, checked math, ≤10 penerima, sisa ≤1 yocto | Kontrak | SEC-CONTRACT-005 |
+| T-07 | Accounting/payout salah | INV-001..004, checked math, ≤10 penerima, Σ ≤ harga−fee | Kontrak | SEC-CONTRACT-005 |
 | T-08 | Drain escrow offer | refund hardcoded `buyer_id`, entry dihapus atomik | Kontrak | SEC-ORDER-002 |
 | T-09 | Malicious NFT contract | permissionless + payout divalidasi + gas caps + optimistic revert | Kontrak | SEC-CONTRACT-003/005/010 |
 | T-10 | Reentrancy/callback manipulation | `#[private]` + validasi promise result | Kontrak | SEC-CONTRACT-003 |
@@ -114,9 +114,9 @@
 | Collection Owner (CREATOR) | = User (owner koleksi) | mint sesuai phase, kelola phase/allowlist miliknya | Kontrak (owner koleksi + storage pre-deposit) | event launchpad |
 | Admin off-chain (ADMIN) | signature wallet + allowlist DB + scope `admin` | moderasi display-layer (report/verified/blocklist) | API + DB allowlist; **tanpa kekuatan on-chain** | `admin_audit` |
 | SUPER_ADMIN | allowlist + (mainnet) 2-admin approval | kelola allowlist admin | API/DB; MVP manual SQL | `admin_audit` manual |
-| Platform Owner (PLATFORM_OWNER) | owner key (MVP) / Sputnik DAO 2-of-3 (mainnet) | pause, `fee_bps`, treasury, upgrade, withdraw | Kontrak (Owner pattern) | event `market_*` on-chain |
+| Platform Owner (PLATFORM_OWNER) | owner key (MVP) / Sputnik DAO 2-of-3 (mainnet) | pause, `fee_bps`, treasury, upgrade | Kontrak (Owner pattern) | event `market_*` on-chain |
 | Guardian (SECURITY) | guardian key (mainnet) | **hanya `pause`** (`pause_callers`) | Kontrak (daftar terpisah dari owner) | event `market_pause` |
-| FINANCE (mainnet) | DAO proposal | tarik treasury | Kontrak (DAO) | event `treasury_withdraw` |
+| FINANCE (mainnet) | DAO proposal | rekonsiliasi fee treasury (off-chain) | DAO; fee masuk treasury saat settlement (ronde 23) | event `market_sale` |
 | Indexer (fase 2) | RPC read-only | ingest event → proyeksi | DB role read-only | lag/reconciliation log |
 | Attacker (untrusted) | — | apa pun yang diizinkan protokol terbuka | dibatasi oleh kontrol di atas | deteksi via alert/monitoring |
 
@@ -130,7 +130,7 @@
 | Cap fee | `MAX_FEE_BPS=500` (5%, immutable) | smart-contract-invariants.md (INV-004) | SEC-CONTRACT-004 |
 | Cap royalti | 10% per token (bundle tanpa cap agregat) | smart-contract-invariants.md (INV-027) | SEC-CONTRACT-005 |
 | Penerima payout | ≤10 unik setelah merge | smart-contract-invariants.md (INV-021) | SEC-CONTRACT-005 |
-| Sisa pembulatan | ≤1 yocto | smart-contract-invariants.md (INV-002) | SEC-CONTRACT-005 |
+| Plafon payout | Σpayout ≤ harga − fee (residual → seller) | smart-contract-invariants.md (INV-002) | SEC-CONTRACT-005 |
 | Harga minimum | 0.01 Ⓝ (listing & offer) | smart-contract-invariants.md (INV-030) | — |
 | Durasi offer | default 7 hari | smart-contract-invariants.md (INV-024) | — |
 | Offer aktif | maks 1 per buyer per token | smart-contract-invariants.md (INV-024) | — |
@@ -203,7 +203,7 @@ KELAS: API / DB / INDEXER (S2–S3)
 | Kontrol / SEC-ID | Jenis test | Test ID / kelas |
 |---|---|---|
 | SEC-ORDER-001/002/004/005/006 (settlement, refund, stale, race) | sandbox | TC-002..006, TC-016..019, TC-042 |
-| SEC-CONTRACT-005 (payout ≤10, sisa ≤1 yocto) | unit matriks royalti + fuzz | TC-003, TC-015 |
+| SEC-CONTRACT-005 (payout ≤10, Σ ≤ harga−fee) | unit matriks royalti + fuzz | TC-003, TC-015 |
 | SEC-CONTRACT-004 (`MAX_FEE_BPS`) | unit + review | property: `update_fee_bps > 500` revert |
 | SEC-CONTRACT-007/012 (pause, guardian) | sandbox + drill | TC-012 + SEC-IR-001 drill |
 | SEC-CONTRACT-009 (launchpad) | sandbox | TC-007, TC-021 |

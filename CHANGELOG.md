@@ -66,6 +66,21 @@ Kebijakan lengkap: [docs/development/versioning-and-release.md](./docs/developme
 
 ### Contract (kontrak NFT + market + factory)
 ### Added
+- **Market buy + settlement + refund (TASK-005, 2026-10-08)** — jalur uang `market/src/lib.rs`. `buy`
+  menulis `pending_purchases` **sebelum** optimistic removal (INV-031), lalu callback `#[private]`
+  `process_purchase` menjalankan dual verification **saat settle** (stale dua kasus INV-016 → refund
+  penuh + `market_stale_detected`; verifikasi tak pasti → refund + restore `Sale`), memanggil
+  `nft_transfer_payout` (1 yocto, `max_len_payout = 10`), dan callback `#[private]` `resolve_purchase`
+  memvalidasi payout **UNTRUSTED** (`1..=10` penerima, `amount > 0`, `Σ ≤ harga−fee`) lalu
+  mendistribusikan fee → treasury, royalti → receiver, residual → seller, kelebihan deposit → buyer;
+  payout invalid atau promise gagal → refund penuh + restore `Sale` (SEC-ORDER-001). Ditambah
+  `recover_stuck_purchase` + `process_recovery` (permissionless setelah `RECOVERY_DELAY_BLOCKS` — setiap
+  deposit punya jalur keluar tanpa governance, INV-031), `update_fee_bps`/`update_treasury` (owner-only,
+  1 yocto, cap `MAX_FEE_BPS` — INV-004), `fee_bps`/`treasury` di init, view
+  `get_fee_bps`/`get_treasury`/`get_pending_purchase`, dan event
+  `market_sale`/`market_stale_detected`/`market_purchase_recovered`/`fee_update`/`treasury_update`.
+  **Belum termasuk**: `remove_stale_listing` (TASK-022), offers/bundle (TASK-009/010), pengukuran gas
+  sandbox + race TC-016/017 (TASK-006).
 - **Market listing 2-tx + storage NEP-145 (TASK-004, 2026-10-08)** — `market/src/lib.rs` kini punya jalur
   listing: `list_nft_for_sale` (deposit = storage NEP-145, **bukan** 1 yocto) yang **tidak percaya klaim
   pemanggil** — kontrak mengirim dua view call ke koleksi (`nft_token` → kepemilikan, `nft_is_approved` →
@@ -117,6 +132,18 @@ Kebijakan lengkap: [docs/development/versioning-and-release.md](./docs/developme
   (SEC-CONTRACT-002). Batas window fase `[starts_at, ends_at)` ditetapkan DECIDED. **Belum termasuk**:
   `nft_transfer_payout` NEP-199 (TASK-003), fase bebas penuh + Pausable (TASK-020).
 - Placeholder crate (init + owner/pause) — surface market/factory menyusul di TASK-004/005/012.
+
+### Changed
+- **Fee dibayar langsung ke treasury di settlement (TASK-005, 2026-10-08)** — `withdraw_fees` dan event
+  `treasury_withdraw` **dihapus**; fee tidak pernah tertahan di kontrak, sehingga tidak ada akuntansi
+  solvensi fee-vs-escrow-vs-storage yang perlu dijaga (temuan M7 tertutup) dan tidak ada honeypot saldo
+  fee. Owner-only config kini `update_fee_bps`/`update_treasury`
+  ([contracts/market.md](./docs/contracts/market.md) §4a; TC-047 dialihkan).
+- **Aturan `sisa ≤ 1 yocto` (INV-002) dibatalkan (TASK-005, 2026-10-08)** — koleksi mengembalikan **hanya
+  royalti** dan market menambahkan seller sebagai residual, sehingga `harga − fee − Σpayout` = **proceeds
+  seller** (wajar besar, mis. 93% harga saat royalti 5%), bukan dust. Yang divalidasi tetap
+  `Σpayout ≤ harga − fee`, `amount > 0`, `1 ≤ len ≤ 10`. Aturan lama berasal dari model tutorial
+  (RESEARCH.md §10.5) yang tidak dipakai NearSea.
 
 ### Fixed
 - **Koreksi spesifikasi `nft_revoke_token` (TASK-004, 2026-10-08)** — 5 dokumen menyebut `remove_sale`
