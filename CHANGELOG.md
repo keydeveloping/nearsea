@@ -66,6 +66,16 @@ Kebijakan lengkap: [docs/development/versioning-and-release.md](./docs/developme
 
 ### Contract (kontrak NFT + market + factory)
 ### Added
+- **Royalti NEP-199 (TASK-003, 2026-10-08)** — `nft_transfer_payout` di `contract/src/lib.rs`:
+  memindahkan token ke `receiver_id` (otorisasi lewat approval NEP-178, `assert_one_yocto()`,
+  `max_len_payout` dihormati) **dan** mengembalikan payout royalti untuk `balance` dalam panggilan
+  yang sama, sesuai NEP-199. Payout = satu penerima (`creator_id`) dengan
+  `floor(balance × royalty_bps / 10_000)` (`checked_mul` → overflow = `CHAIN_REVERT`), diturunkan dari
+  konfigurasi royalti **level kontrak** — bukan `TokenMetadata.extra`, bukan per-token. Selalu ≤10%
+  harga (INV-027); entri ber-amount `0` (basis dust) tetap dikembalikan apa adanya supaya market yang
+  memutuskan validasi INV-003 pada payout final. **Belum termasuk**: pengukuran gas 15 Tgas dan
+  TC-003 versi sandbox (validasi payout di sisi market + refund) — keduanya milik suite dua-kontrak
+  TASK-006.
 - **Versioning & rilis (TASK-032, 2026-10-07)** — versi artefak kini **tertanam di build dan
   bisa dibaca dari luar** (SEC-CONTRACT-006, NEP-330):
   - `[package.metadata.near.reproducible_build]` di ketiga crate (`contract/`, `market/`,

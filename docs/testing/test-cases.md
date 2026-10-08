@@ -341,4 +341,12 @@ Layer: sandbox | Invariant: INV-031
 > **Cakupan slice M1 (TASK-006):** TC yang runnable tanpa M1+ = TC-001 (mint), TC-002 (list&buy), TC-013 (harga < min), TC-016 (race 20 pembeli), TC-017 (double-submit), TC-020 (storage kurang), TC-022 (harga berubah), TC-044 (remove_sale), TC-047 (withdraw_fees owner-only), TC-048 (callback dipalsukan), **TC-053** (stale approval), **TC-054** (recover stuck). TC-003/TC-012 sebagian (butuh setup khusus / subset market-pause).
 > **Deferred ke M1+:** TC-004/005/008/018/019/041 (offers), TC-009/010/011/014/015/043/046 (bundle/private), TC-006 (stale ownership — cleanup), TC-007/021 (launchpad), TC-023/024 (notifikasi), TC-025..TC-039 (API/admin/profil/report), TC-040 (E2E penuh, butuh factory+seed), TC-049..TC-052 (API/CORS/health).
 
+> **Sudah dibuktikan di level unit (bukan pengganti sandbox):** TC-001 (mint → transfer → events) dan
+> **sisi koleksi TC-003** — `nft_transfer_payout` memindahkan kepemilikan dan mengembalikan payout
+> royalti ≤10% (dust + cap diuji), wajib 1 yocto, menolak pengirim tanpa approval, dan approval lama
+> invalid setelah transfer (INV-011). Lihat 11 test `test_transfer_payout_*` di `contract/src/lib.rs`
+> (TASK-003, ronde 21). Yang **belum** dibuktikan: validasi payout di sisi **market** (≥1 penerima,
+> Σ ≤ harga−fee, sisa ≤1 yocto, refund saat invalid) — itu bagian sandbox TC-003 milik TASK-006,
+> bersama angka gas 15 Tgas.
+
 > Kasus lanjutan (TC-019..TC-052) mengikuti skenario wajib di [testing-strategy.md](./testing-strategy.md): offer auto-cancel, storage deposit, phase overlap, harga berubah saat signing, profil custom API (NEP-413), notifikasi polling/idempotency, admin step-up, test endpoint API (happy + error), E2E jalur emas, plus perlindungan bundle (TC-043..046) dan jalur owner/admin (TC-047..052). Kasus discovery ★ fase 2 ditambahkan saat indexer aktif.
