@@ -17,7 +17,7 @@
 
 ```text
 LISTING:  ACTIVE ──► SOLD (settlement sukses)
-             ├──► CANCELLED (seller, assert_one_yocto + nft_revoke_token oleh market)
+             ├──► CANCELLED (seller, assert_one_yocto; market hapus entry — tanpa revoke approval)
              └──► STALE (ownership mismatch terdeteksi → disembunyikan; remove_stale_listing)
 
 OFFER:    ACTIVE ──► ACCEPTED (seller → nft_transfer_payout; escrow terdistribusi)
@@ -26,7 +26,7 @@ OFFER:    ACTIVE ──► ACCEPTED (seller → nft_transfer_payout; escrow terd
              └──► SUPERSEDED (offer lain pada token yang sama di-accept → auto-cancel + refund)
 
 BUNDLE:   ACTIVE ──► SOLD (semua token sukses ditransfer)
-             ├──► CANCELLED (seller; cukup hapus + nft_revoke_token per token)
+             ├──► CANCELLED (seller; cukup hapus membership — approval tidak dicabut market)
              ├──► PRE_VALIDATE_FAILED (pre-validasi gagal sebelum transfer pertama → abort bersih + refund penuh)
              └──► PARTIAL (residual mid-loop failure — sangat jarang: concurrent transfer/gas;
                   NEAR tidak punya rollback lintas-receipt (FACT) → status partial tercatat on-chain
@@ -62,7 +62,7 @@ Sebelum sign, FE wajib view-call on-chain: harga, ownership, expiry, stale flag.
 
 - **ACTIVE→SOLD (listing)**: deposit = harga (kelebihan deposit → selisih dikembalikan buyer via resolve), buyer ≠ seller (INV-023), token masih milik seller & approval valid (dual verification), payout tervalidasi: **royalti ≤ 10% harga**, ≤10 penerima, sum ≤ harga−fee, sisa ≤1 yocto, fee 2% dipotong dulu.
 - **ACTIVE→ACCEPTED (offer)**: hanya oleh owner token saat itu & sebelum expiry; **1 offer aktif/buyer/token** & min 0.01 Ⓝ dicek saat make; escrow exact = attached deposit.
-- **ACTIVE→CANCELLED**: seller/listing — `nft_revoke_token` dipanggil **market sebagai approved account** (bukan `nft_revoke` yang owner-only); buyer/offer — refund ke `offer.buyer_id` hardcoded; storage deposit offer TIDAK otomatis kembali (ditarik via `storage_withdraw` oleh pemiliknya — mencegah gas-DoS refund massal).
+- **ACTIVE→CANCELLED**: seller/listing — market **hanya menghapus entry `Sale`** (tidak mencabut approval: NEP-178 tidak punya revoke untuk approved account — [contracts/market.md](../contracts/market.md) §2a); buyer/offer — refund ke `offer.buyer_id` hardcoded; storage deposit offer TIDAK otomatis kembali (ditarik via `storage_withdraw` oleh pemiliknya — mencegah gas-DoS refund massal).
 - **EXPIRED**: lazy evaluation — dicek saat sentuh (accept/cancel/withdraw); tidak butuh cron (FACT: tidak ada cron di MVP).
 - **STALE**: deteksi = `nft_token(token_id).owner_id != sale.owner_id` saat view/dibeli; setelah stale → tidak bisa dibeli.
 - **STALE dalam bundle**: jika salah satu token bundle dipindah/di-list/di-offer terpisah → seluruh bundle tak bisa dibeli (cek tiap item saat offer) + seller ditandai untuk batal manual; token dalam bundle AKTIF tidak boleh di-list/di-offer terpisah (dicek saat list/offer via cek bundle membership).
@@ -136,8 +136,8 @@ Pola tutorial (RESEARCH.md §10): sale dihapus sebelum settlement (optimistic); 
 |---|---|---|---|---|
 | **Buyer** | `buy`, `buy_bundle` (deposit = harga), `make_offer` (escrow exact), `cancel_offer` | `predecessor_account_id` = pemanggil; deposit ≥ harga / = offer | ≠ seller (INV-023); private → `allowed_buyer` (INV-026); 1 offer aktif/buyer/token (INV-024); min 0.01 Ⓝ (INV-030) | `market_sale` / `market_offer` / `market_offer_cancel` |
 | **Seller** | `list_nft_for_sale`, `update_price`, `remove_sale`, `accept_offer`, `create_bundle`, `cancel_bundle` | `predecessor` = `sale.owner_id` / owner token saat itu; `assert_one_yocto()` (kecuali list/create = storage) | harga ≥ min (INV-030); bundle ≤10 token & receiver unik ≤10 (INV-021); phase launchpad berurutan (INV-029) | `market_list` / `market_update_price` / `market_delist` / `market_offer_accept` |
-| **Market contract** | settle (`nft_transfer_payout`), revoke approval, refund, distribusi fee/royalti, tandai stale | **internal** — bukan aktor eksternal; `#[private]` callback (INV-013) | tujuan transfer hanya turunan state tervalidasi (INV-014); dual verification sebelum transfer (INV-016) | event `market_*` (emitter = market) |
-| **NFT contract** (koleksi) | `nft_transfer_payout` (paksa royalti NEP-199), `nft_token`, `nft_is_approved`, `nft_approve`, `nft_revoke_token` | dipanggil market sebagai approved account (NEP-178) | payout UNTRUSTED → market validasi (≤10, sum, remainder — INV-002/003); approval invalid setelah transfer (INV-011) | `nft_transfer` / `nft_mint` (NEP-171/297) |
+| **Market contract** | settle (`nft_transfer_payout`), refund, distribusi fee/royalti, tandai stale | **internal** — bukan aktor eksternal; `#[private]` callback (INV-013) | tujuan transfer hanya turunan state tervalidasi (INV-014); dual verification sebelum transfer (INV-016) | event `market_*` (emitter = market) |
+| **NFT contract** (koleksi) | `nft_transfer_payout` (paksa royalti NEP-199), `nft_token`, `nft_is_approved`, `nft_approve` | dipanggil market sebagai approved account (NEP-178); **`nft_revoke` owner-only** → market tidak mencabut approval | payout UNTRUSTED → market validasi (≤10, sum, remainder — INV-002/003); approval invalid setelah transfer (INV-011) | `nft_transfer` / `nft_mint` (NEP-171/297) |
 | **Siapa pun** | `remove_stale_listing` (permissionless), refund offer expired (lazy) | bebas | hanya bila mismatch/stale **terbukti on-chain**; refund selalu ke `buyer_id` (INV-005) | `market_stale_detected` / `market_offer_expire` |
 
 ## 11. Anggaran gas (Tgas) per jalur order
@@ -152,7 +152,7 @@ Pola tutorial (RESEARCH.md §10): sale dihapus sebelum settlement (optimistic); 
 | `list_nft_for_sale` | writes + 2 view call (`nft_token`, `nft_is_approved`) + `process_listing` | ~10–20 | PROPOSED |
 | `make_offer` | tulis state escrow | ~5 | PROPOSED |
 | `cancel_offer` / `cancel_bundle` | tulis state + transfer refund | ~5–10 | PROPOSED |
-| `remove_sale` / `update_price` / `remove_stale_listing` | tulis state (+ `nft_revoke_token` untuk remove) | ~5 | PROPOSED |
+| `remove_sale` / `update_price` / `remove_stale_listing` | tulis state (tanpa XCC — approval tidak dicabut market) | ~5 | PROPOSED |
 | `nft_approve` (NFT contract) | Tx-1 listing; + storage approval | ~10–15 | PROPOSED |
 
 - `buy_bundle` 10 token = satu-satunya jalur yang mendekati 300 Tgas → **batas statis 10 token** (INV-021) adalah kontrolnya (SEC-CONTRACT-010).

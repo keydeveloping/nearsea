@@ -42,6 +42,16 @@
   transfer/INV-011), `fmt`/`clippy -D warnings` bersih, wasm 272 KB (ABI memuat `nft_transfer_payout`).
   **Belum diklaim**: angka gas 15 Tgas + TC-003 versi sandbox (sisi market validasi payout & refund) —
   keduanya butuh suite dua-kontrak TASK-006. Sisa slice M1: TASK-004 → 005 → 006, dan jalur FE 007 → 008.
+- **Status TASK-004 (2026-10-08, ronde 22): ✅ `done` (kode).** Jalur listing market di `market/src/lib.rs`:
+  `list_nft_for_sale` 2-tx non-custodial + callback `process_listing` `#[private]` yang memverifikasi
+  sendiri lewat dua view XCC (kepemilikan **dan** approval — SEC-ORDER-004, ADR-002), `remove_sale`,
+  `update_price`, view listing, storage NEP-145 (bounds `min = storage_per_sale()`), Pausable (INV-022),
+  dan tiga event kanonik. Bukti: **69 test** workspace (26 baru) — non-custodial dibuktikan dengan membaca
+  receipt (hanya 2 view + callback; tidak ada `nft_transfer*`); `fmt`/`clippy -D warnings` bersih; wasm
+  193 KB. **Koreksi dokumen**: `nft_revoke_token` tidak ada di NEP-178 → `remove_sale` tidak mencabut
+  approval ([contracts/market.md](../docs/contracts/market.md) §2a). **Belum diklaim**: paruh buy TC-002,
+  race TC-016/017, TC-022, TC-048, angka gas penuh — butuh TASK-005/006. Sisa slice M1: TASK-005 → 006,
+  dan jalur FE 007 → 008.
 
 ## M1+ — MVP completion (lanjutan eksplisit, bukan dibuang)
 

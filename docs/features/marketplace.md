@@ -69,14 +69,19 @@ Parameter offer (DIPUTUSKAN ronde 4 & 6):
 1. Seller buka listing miliknya → Cancel.
 2. FE re-verify get_sale (pemanggil = seller, status ACTIVE).
 3. Seller sign remove_sale { nft_contract_id, token_id } — attach 1 yocto.
-4. Kontrak: predecessor == sale.owner_id; hapus entry Sale; panggil nft_revoke_token(token_id, market)
-   sebagai approved account (bukan nft_revoke yang owner-only).
+4. Kontrak: predecessor == sale.owner_id; hapus entry Sale; storage seller dibebaskan.
 5. Event market_delist. NFT TIDAK pernah berpindah wallet.
 6. Storage deposit seller dapat ditarik kembali via storage_withdraw (NEP-145).
 ```
 
 - `remove_sale` tetap diizinkan saat kontrak `paused` (jalur pengembalian aset/refund — INV-022).
-- Setelah `remove_sale`, re-list memerlukan `nft_approve` baru → `approval_id` baru.
+- **Market tidak mencabut approval** (koreksi ronde 22 — lihat [contracts/market.md](../contracts/market.md) §2a):
+  NEP-178 hanya punya `nft_revoke`/`nft_revoke_all`, dan keduanya **owner-only** — tidak ada method
+  untuk approved account. Approval yang tersisa tidak berbahaya: tanpa entry `Sale` market tidak punya
+  alasan memindahkan token, dan transfer berikutnya oleh owner otomatis mencabut semua approval.
+- Re-list **wajib** `nft_revoke` (atau `nft_revoke_all`) dulu, baru `nft_approve` baru → `approval_id`
+  baru. `nft_approve` pada akun yang sudah di-approve panic (`AccountAlreadyApprovedError`), jadi
+  langkah revoke itu wajib, bukan opsional.
 
 ## Flow — Cancel Offer
 
@@ -96,7 +101,8 @@ Parameter offer (DIPUTUSKAN ronde 4 & 6):
 ```text
 1. Seller buka bundle → Cancel.
 2. Seller sign cancel_bundle { bundle_id } — attach 1 yocto.
-3. Kontrak: predecessor == bundle.seller; status bundle → CANCELLED; nft_revoke_token per token
+3. Kontrak: predecessor == bundle.seller; status bundle → CANCELLED; membership dihapus
+   (market **tidak** mencabut approval — NEP-178 owner-only, §2a [contracts/market.md](../contracts/market.md))
    (market sebagai approved account).
 4. Semua token bebas di-list/di-offer terpisah kembali (INV-028 berhenti berlaku).
 5. `cancel_bundle` tetap diizinkan saat paused (INV-022).
@@ -168,7 +174,9 @@ pub fn remove_sale(&mut self, nft_contract_id: AccountId, token_id: String)
 | `nft_contract_id` | string | ya | Kontrak NFT. |
 | `token_id` | string | ya | Token yang listing-nya dibatalkan. |
 
-- Deposit **1 yocto** (assert_one_yocto); predecessor == `sale.owner_id`; `nft_revoke_token` sebagai approved account. Event: `market_delist`.
+- Deposit **1 yocto** (assert_one_yocto); predecessor == `sale.owner_id`. Event: `market_delist`.
+  Market **tidak** mencabut approval — NEP-178 tidak punya revoke untuk approved account
+  ([contracts/market.md](../contracts/market.md) §2a).
 
 ### `update_price` — assert_one_yocto
 
@@ -346,7 +354,7 @@ pub fn cancel_bundle(&mut self, bundle_id: u64)
 
 | Aksi | Yang dibayar | Perkiraan |
 |---|---|---|
-| `list_nft_for_sale` | entry `Sale` (map `sales`) | ⏳ open-by-design |
+| `list_nft_for_sale` | entry `Sale` (map `sales`) | ✅ aktif — bounds `min = storage_per_sale()` (500 byte, PROPOSED); deposit kurang → revert |
 | `make_offer` | entry `Offer` + escrow bookkeeping | ⏳ open-by-design |
 | `create_bundle` | entry `Bundle` + membership item | ⏳ open-by-design |
 | `nft_mint` | storage token + metadata di NFT contract | dibayar pemicu mint (INV-019) |
@@ -361,8 +369,8 @@ pub fn cancel_bundle(&mut self, bundle_id: u64)
 | Method | Gas (Tgas) | Catatan |
 |---|---|---|
 | `nft_approve` (NFT contract) | ~10–15 (PROPOSED) | Tx-1 listing; + storage approval. |
-| `list_nft_for_sale` | **≈10–20 total** (PROPOSED): tulis ~5 + 2 view call ~3–5 masing-masing | Dual verification `nft_token` + `nft_is_approved`; callback `process_listing` pakai sisa budget. Angka total = SSOT lintas-dokumen (order-protocol-security §11, ADR-012). |
-| `remove_sale` / `update_price` | ~5 (PROPOSED) | Tulis state + `nft_revoke_token` (remove). |
+| `list_nft_for_sale` | **≈10–20 total** (PROPOSED): 2 view call ~5 + callback ~10 | Dual verification `nft_token` + `nft_is_approved`; callback `process_listing`. Angka total = SSOT lintas-dokumen (order-protocol-security §11, ADR-012). Konstanta: `GAS_FOR_NFT_VIEW`/`GAS_FOR_PROCESS_LISTING` ([contracts/market.md](../contracts/market.md) §6). |
+| `remove_sale` / `update_price` | ~5 (PROPOSED) | Tulis state (remove: hapus entry + kembalikan storage; **tanpa** XCC — §2a). |
 | `make_offer` | ~5 (PROPOSED) | Tulis state escrow. |
 | `cancel_offer` | ~5–10 (PROPOSED) | Transfer refund. |
 | `accept_offer` | ~15 (`nft_transfer_payout`) + 115 (`resolve_purchase`) | Sama seperti `buy`. |
@@ -379,15 +387,18 @@ list_nft_for_sale(..., approval_id=N)     →  market mencatat Sale.approval_id 
         │
         ├── buy / accept_offer  →  nft_transfer_payout memakai N; setelah transfer sukses
         │                          approval N INVALID (FACT NEP-178) → settle cek ulang tiap kali (INV-011)
-        ├── remove_sale         →  nft_revoke_token → approval N dicabut
+        ├── remove_sale         →  entry Sale hilang; approval N TETAP ada (market tidak mencabut — §2a)
         └── update_price        →  approval TIDAK berubah (state harga di market saja)
 
-remove_sale lalu list ulang  →  wajib nft_approve BARU → approval_id baru (M ≠ N)
+remove_sale lalu list ulang  →  nft_revoke(market) dulu (approval lama masih ada),
+                                baru nft_approve BARU → approval_id baru (M ≠ N)
 ```
 
 - `approval_id` = `BIGINT` di DB ([data-model.md](../database/data-model.md)); `null` bila approval tanpa id.
 - **Invalidasi pasca-transfer**: market tidak boleh settle dengan `approval_id` lama — cek ulang `nft_is_approved` setiap settle (INV-011/016).
 - Satu `approval_id` per (token, market); revoke/transfer → invalid (signature-architecture.md).
+- **Re-list**: `nft_approve` pada akun yang sudah di-approve **panic** (`AccountAlreadyApprovedError`),
+  jadi revoke dulu wajib. `remove_sale` tidak melakukannya untuk seller (§2a).
 
 ## Discovery — Query / Filter / Sort / Pagination / Search
 

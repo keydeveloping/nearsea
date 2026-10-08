@@ -272,11 +272,11 @@ Steps: 1) seller coba `list_nft_for_sale` untuk T 2) akun lain coba `make_offer`
 Expected: kedua aksi ditolak `CONFLICT_BUNDLE_ITEM_INVALID`; bundle tetap AKTIF; tidak ada state sale/offer tercipta.
 Layer: sandbox | Invariant: INV-028
 
-### TC-044 — Cancel listing (remove_sale) + revoke approval
+### TC-044 — Cancel listing (remove_sale) + storage kembali
 Precondition: 1 listing aktif milik seller; storage deposit terpenuhi.
-Steps: 1) seller `remove_sale` (1 yocto) 2) cek `nft_is_approved(market, approval_id)` 3) coba buy listing yang sama.
-Expected: sale hilang dari state; approval di-revoke oleh market (`nft_revoke_token`); buy berikutnya gagal; event `market_delist`.
-Layer: sandbox | Invariant: INV-012, INV-016
+Steps: 1) seller `remove_sale` (1 yocto) 2) cek state `get_sale` 3) coba buy listing yang sama.
+Expected: sale hilang dari state; storage seller kembali (dapat ditarik via `storage_withdraw`); buy berikutnya gagal; event `market_delist`. **Approval market TIDAK dicabut** oleh `remove_sale` (NEP-178 owner-only — [contracts/market.md](../contracts/market.md) §2a); re-list memerlukan `nft_revoke` lalu `nft_approve` baru.
+Layer: sandbox | Invariant: INV-012, INV-016, INV-020
 
 ### TC-045 — Cancel offer + refund buyer
 Precondition: 1 offer aktif (escrow terisi exact).
@@ -348,5 +348,17 @@ Layer: sandbox | Invariant: INV-031
 > (TASK-003, ronde 21). Yang **belum** dibuktikan: validasi payout di sisi **market** (≥1 penerima,
 > Σ ≤ harga−fee, sisa ≤1 yocto, refund saat invalid) — itu bagian sandbox TC-003 milik TASK-006,
 > bersama angka gas 15 Tgas.
+
+> **Sudah dibuktikan di level unit untuk paruh listing (ronde 22, TASK-004):** 26 test di
+> `market/src/lib.rs` menutup paruh **list** dari TC-002 (dual verification: ownership **dan** approval,
+> termasuk jalur `nft_token` gagal / `None` / approval `false`), TC-013 (harga < min, plus batas
+> inklusif tepat 0.01 Ⓝ), TC-020 (storage kurang → revert; storage kembali saat `remove_sale`),
+> TC-044 (`remove_sale` 1 yocto + owner-only + boleh saat paused + event), serta duplikat listing
+> (INV-007), `update_price` (in-place + min + owner-only + paused), `approval_id` di luar rentang
+> `u32`, dan paginasi view. Non-custodial dibuktikan dengan **membaca receipt** yang dibuat jalur
+> listing: hanya `nft_token` + `nft_is_approved` + callback, tidak ada `nft_transfer*`.
+> Yang **belum**: paruh **buy** TC-002, TC-016/017 (race/double-submit), TC-022 (harga berubah),
+> TC-048 (callback dipalsukan oleh kontrak penyerang), dan angka gas penuh — semuanya butuh dua
+> kontrak nyata (TASK-005/006).
 
 > Kasus lanjutan (TC-019..TC-052) mengikuti skenario wajib di [testing-strategy.md](./testing-strategy.md): offer auto-cancel, storage deposit, phase overlap, harga berubah saat signing, profil custom API (NEP-413), notifikasi polling/idempotency, admin step-up, test endpoint API (happy + error), E2E jalur emas, plus perlindungan bundle (TC-043..046) dan jalur owner/admin (TC-047..052). Kasus discovery ★ fase 2 ditambahkan saat indexer aktif.
