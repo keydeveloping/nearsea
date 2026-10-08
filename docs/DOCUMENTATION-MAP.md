@@ -113,7 +113,7 @@ Keputusan keamanan (ADR-010..015) mengikat architecture & protocol design di cha
 **Kode** (dibuat TASK-001; bukan dokumen — terdaftar agar tidak jadi folder yatim)
 
 - `contract/` — kontrak NFT koleksi (TASK-002..003); `market/` — kontrak market (TASK-004..005); `factory/` — kontrak factory (TASK-012). Struktur internal: [contracts/](./contracts/nft-collection.md)
-- `frontend/` — Next.js App Router (TASK-007..008). Struktur internal: [frontend-architecture.md](./architecture/frontend-architecture.md) §1
+- `frontend/` — Next.js App Router (TASK-007..008). Struktur internal: [frontend-architecture.md](./architecture/frontend-architecture.md) §1. **Wallet connect (TASK-007):** `features/auth/` + `lib/near/` + `lib/format/money.ts` + `i18n/en/auth.json` — lihat [frontend-architecture.md](./architecture/frontend-architecture.md) §Wallet integration, §7 dan [features/auth.md](./features/auth.md) §Status implementasi.
 
 **docs/development/** (proses kerja)
 

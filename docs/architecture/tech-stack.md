@@ -73,12 +73,13 @@
 | `near-sdk-contract-tools` | versi terbaru kompatibel | **4.0.0** | Derive NEP + Owner/Pause; mensyaratkan `near-sdk ^5.18`. **Nama crate = `near_sdk_contract_tools`** (bukan `near_contract_tools`) |
 | `cargo-near` | 0.6.1 (rujukan riset) | **0.22.0** | Di-pin + verifikasi sha256 di CI (`.github/workflows/ci.yml`) |
 | `near-cli-rs` | 0.17.0 (rujukan riset) | belum di-pin | Hanya tooling interaktif deploy; dipin saat deploy testnet pertama |
-| `near-api-js` / `@near-js/*` | versi terbaru saat scaffold | belum ditambah | Read/view call — masuk bersama TASK-007 |
-| `near-connect` | versi terbaru | belum ditambah | Wallet adapter (ronde 5) — masuk bersama TASK-007 |
+| `near-api-js` | versi terbaru saat scaffold | **7.3.1** (transitif) | RPC client — **tidak** dideklarasikan langsung oleh NearSea; ditarik `near-connect-hooks` (aturan "Simplicity First": tidak memasang dependensi sebelum dipakai) |
+| `near-connect` | versi terbaru | **0.11.4** | Wallet adapter (ronde 5) — ditambah di TASK-007 |
+| `near-connect-hooks` | — | **1.1.6** | `NearProvider` + `useNearWallet` (ronde 5 "hooks resminya") — ditambah di TASK-007 |
 | Prisma | versi terbaru saat scaffold | belum ditambah | Migrate + client — masuk bersama API/report (TASK-018) |
 | PostgreSQL | 15+ (rujukan; final saat provision) | belum di-pin | Lihat ekstensi di bawah |
-| TanStack Query | v5 | belum ditambah | Server state — masuk bersama TASK-007/008 |
-| Zustand | v4/v5 sesuai scaffold | belum ditambah | Client state — masuk bersama TASK-007/008 |
+| TanStack Query | v5 | belum ditambah | Server state — masuk bersama TASK-008 |
+| Zustand | v4/v5 sesuai scaffold | belum ditambah | Client state — masuk bersama TASK-008 |
 | gitleaks | terbaru | **v2** (action ter-pin SHA) | SEC-CICD-002; gate CI + `.gitleaks.toml` |
 
 - **Kenapa dua versi naik:** `rust-toolchain.toml` dan `near-sdk` saling terikat — `near-sdk` 5.x (satu-satunya jalur untuk `near-sdk-contract-tools` 4.x) mensyaratkan toolchain ≥1.85. Alternatif "tetap 1.77.1 + near-sdk 4.1 + contract-tools 2.1" ditolak karena dokumen kontrak sudah dikunci ke sintaks 5.x (dan 4.x tidak lagi menerima perbaikan).
@@ -121,7 +122,7 @@
 | Zustand | MIT | Permisif |
 | Prisma | Apache-2.0 | Permisif |
 | PostgreSQL | PostgreSQL License | Permisif |
-| near-api-js / near-connect | MIT/Apache-2.0 | Verifikasi saat scaffold |
+| near-api-js / near-connect / near-connect-hooks | MIT | Permisif (terverifikasi saat TASK-007) |
 | NEP standar | spesifikasi publik | Implementasi bebas |
 
 - **Aturan**: sebelum menambah dependensi, verifikasi lisensi kompatibel (tidak ada copyleft kuat yang membatasi distribusi) dan catat di PR.

@@ -32,6 +32,15 @@
   lengkap. **Belum di-deploy** ke testnet — deploy wajib tanya user dulu ([git-workflow.md](../docs/development/git-workflow.md) §3);
   karena itu item "kontrak ter-deploy" pada tiket slice `04` ditandai ⚠️ sebagian. Sisa slice M1:
   TASK-003 → 004 → 005 → 006, dan jalur FE 007 → 008.
+- **Status TASK-007 (2026-10-08, ronde 25): ✅ `done` (kode).** Wallet connect di
+  `frontend/features/auth/` (`@hot-labs/near-connect` 0.11.4 + `near-connect-hooks` 1.1.6, di-pin
+  exact): state app-wide via `WalletContext`/`useWallet()` dengan satu tipe `WalletApi`, header dengan
+  indikator jaringan + kontrol wallet, banner peringatan jaringan + flag gerbang
+  `transactionsDisabled`, mode baca tanpa wallet. Gate FE hijau: `lint`, `format:check`, `typecheck`,
+  `test` (**52 test**), `build` (4/4 statis); bundle bersih dari secret. **Belum diklaim**: connect
+  dengan wallet testnet nyata (butuh akun testnet + browser; jalur emas Playwright = TASK-008), dan
+  penonaktifan tombol aksi berbasis `transactionsDisabled` (tombol aksi baru ada di TASK-008). Sisa
+  slice M1: TASK-008 saja. Lihat juga TASK-037 (tinjauan dependency `function-call-key-plugin`).
 
 ## M1+ — MVP completion (lanjutan eksplisit, bukan dibuang)
 
