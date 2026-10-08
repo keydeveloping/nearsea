@@ -34,6 +34,22 @@ export const nearDouble = {
   signInAccountId: "alice.testnet",
   signIn: vi.fn(async () => undefined),
   signOut: vi.fn(async () => undefined),
+  /** Hasil view call per nama method; method tanpa entri mengembalikan `null`. */
+  viewResults: {} as Record<string, unknown>,
+  viewError: null as Error | null,
+  /** Semua view call yang diterima — supaya test bisa memeriksa argumen & jumlah panggilan. */
+  views: [] as Array<{ contractId: string; method: string; args?: Record<string, unknown> }>,
+  /** Hasil transaksi tulis per nama method; method tanpa entri mengembalikan `null`. */
+  callResults: {} as Record<string, unknown>,
+  callError: null as Error | null,
+  /** Semua transaksi tulis yang dikirim (termasuk gas & deposit) — bukti urutan 2 langkah. */
+  calls: [] as Array<{
+    contractId: string;
+    method: string;
+    args?: Record<string, unknown>;
+    gas?: string;
+    deposit?: string;
+  }>,
   subscribe(listener: () => void) {
     listeners.add(listener);
     return () => {
@@ -50,6 +66,12 @@ export const nearDouble = {
     nearDouble.signInAccountId = "alice.testnet";
     nearDouble.signIn.mockClear();
     nearDouble.signOut.mockClear();
+    nearDouble.viewResults = {};
+    nearDouble.viewError = null;
+    nearDouble.views = [];
+    nearDouble.callResults = {};
+    nearDouble.callError = null;
+    nearDouble.calls = [];
   },
 };
 
@@ -89,6 +111,26 @@ export function useNearWallet() {
       if (nearDouble.signOutError) throw nearDouble.signOutError;
       nearDouble.state.accountId = "";
       notify();
+    },
+    viewFunction: async (params: {
+      contractId: string;
+      method: string;
+      args?: Record<string, unknown>;
+    }) => {
+      nearDouble.views.push(params);
+      if (nearDouble.viewError) throw nearDouble.viewError;
+      return nearDouble.viewResults[params.method] ?? null;
+    },
+    callFunction: async (params: {
+      contractId: string;
+      method: string;
+      args?: Record<string, unknown>;
+      gas?: string;
+      deposit?: string;
+    }) => {
+      nearDouble.calls.push(params);
+      if (nearDouble.callError) throw nearDouble.callError;
+      return nearDouble.callResults[params.method] ?? null;
     },
   };
 }

@@ -5,6 +5,7 @@ import { AppHeader } from "@/features/auth/components/AppHeader";
 import { WalletProvider } from "@/features/auth/components/WalletProvider";
 import { t } from "@/i18n";
 
+import { QueryProvider } from "./QueryProvider";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -26,10 +27,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">
-        <WalletProvider>
-          <AppHeader />
-          {children}
-        </WalletProvider>
+        <QueryProvider>
+          <WalletProvider>
+            <AppHeader />
+            {children}
+          </WalletProvider>
+        </QueryProvider>
       </body>
     </html>
   );

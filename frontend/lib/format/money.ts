@@ -16,6 +16,23 @@ export function asYoctoNear(value: string): YoctoNear {
 }
 
 /**
+ * Input Ⓝ dari user ("0.01", "1.5") → yoctoNEAR. `null` bila tidak bisa diurai dengan aman.
+ *
+ * Aritmetika tetap BigInt: pecahan digeser dengan perkalian/pembagian pangkat sepuluh,
+ * bukan `parseFloat` — nilai Ⓝ tidak pernah melewati float.
+ */
+export function parseNearInput(value: string): YoctoNear | null {
+  const trimmed = value.trim();
+  if (!/^\d+(\.\d+)?$/.test(trimmed)) return null;
+
+  const [whole, fraction = ""] = trimmed.split(".");
+  if (fraction.length > YOCTO_DECIMAL_DIGITS) return null;
+
+  const padded = fraction.padEnd(YOCTO_DECIMAL_DIGITS, "0");
+  return asYoctoNear((BigInt(whole) * YOCTO_PER_NEAR + BigInt(padded || "0")).toString());
+}
+
+/**
  * Format tampilan Ⓝ dari string yoctoNEAR. Pecahan **dipotong** (bukan dibulatkan)
  * supaya tidak pernah melebih-lebihkan saldo.
  */

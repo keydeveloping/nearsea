@@ -20,6 +20,14 @@ export function buildWalletApi(overrides: Partial<WalletApi> = {}): WalletApi {
     connect: async () => undefined,
     disconnect: async () => undefined,
     retry: async () => undefined,
+    // Default tanpa wallet: tidak ada provider untuk dipanggil, jadi melempar — bukan
+    // diam-diam mengembalikan `null` yang bisa disalahartikan sebagai hasil view kosong.
+    viewFunction: async () => {
+      throw new Error("No wallet provider available for view calls");
+    },
+    callFunction: async () => {
+      throw new Error("No wallet connected for transactions");
+    },
     ...overrides,
   };
 }
