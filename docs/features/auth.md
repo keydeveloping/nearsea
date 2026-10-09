@@ -125,6 +125,47 @@ User menghubungkan wallet NEAR untuk bertransaksi; tanpa wallet tetap bisa brows
 
 - App tidak pernah melihat/menyimpan private key — hanya alamat publik.
 
+## Status implementasi (TASK-007, 2026-10-08)
+
+> Kode: `frontend/features/auth/` + `frontend/lib/near/` + `frontend/lib/format/money.ts` +
+> `frontend/i18n/en/auth.json`. Detail arsitektur: [frontend-architecture.md](../architecture/frontend-architecture.md)
+> §Wallet integration.
+
+| Bagian flow | Status | Catatan |
+|---|---|---|
+| Klik Connect → pilih wallet | ✅ | Popup **bawaan near-connect** (bukan komponen `Modal` sendiri). Daftar wallet dari manifest resmi — tanpa allowlist manual |
+| Approve di wallet → alamat tersimpan | ✅ | `signIn()`; near-connect menyimpan wallet terpilih di localStorage |
+| Revisit → reconnect otomatis | ⚠️ belum diverifikasi | Mekanisme ada di near-connect (`getConnectedWallet()`); belum diuji dengan wallet nyata |
+| Disconnect manual | ✅ | `disconnect()` → `signOut()`; state kembali `disconnected` |
+| Tampilan alamat + saldo di header | ✅ | Saldo dari probe RPC `view_account`; yoctoNEAR → tampilan lewat `lib/format/money.ts` (BigInt) |
+| Network mismatch → banner + disable tx | ⚠️ sebagian | Banner + **flag gerbang** `transactionsDisabled` ada dan teruji; yang **belum ada** adalah tombol aksi yang memakainya (baru muncul di TASK-008) |
+| Sesi API (JWT) in-memory | — | Fitur API; belum ada (Fase 2) |
+| Deep-link mobile | ⏳ | Tetap open-by-design; mengikuti near-connect saat diuji di perangkat |
+
+- **Deteksi jaringan (batasan yang disengaja)**: near-connect **tidak mengekspos network wallet**, jadi
+  mismatch tidak bisa dibaca langsung. Yang dibuktikan on-chain adalah **akun tidak ada di jaringan yang
+  dikonfigurasi** (probe `view_account` gagal "account does not exist"). Akibatnya: akun testnet yang
+  belum dibuat/di-fund juga memicu peringatan ini (positif palsu yang disengaja), dan akun yang ada di
+  **kedua** jaringan tidak terdeteksi (negatif palsu). Copy UI karena itu menyebut **kedua** kemungkinan
+  ("wallet di jaringan lain **atau** akun belum dibuat/di-fund"), bukan mengklaim jaringan yang salah.
+  RPC yang tidak terjangkau (`unreachable`) **tidak** memicu peringatan — RPC bermasalah bukan bukti
+  akun ada di jaringan lain — tetapi tetap membuat `transactionsDisabled = true`.
+- **State yang dipakai**: `loading` (pra-hidrasi) / `disconnected` / `connecting` (+ hint "approve di
+  wallet") / `connected(alamat+saldo)` / `disconnecting` / `error` (+ Retry yang mengulang **aksi yang
+  gagal**, pesan i18n, tanpa teks mentah wallet). `wallet-picker` dan `approving` versi kustom tidak
+  dibuat — popup near-connect yang menanganinya; `rejected` tidak dipisah menjadi state sendiri karena
+  gejalanya sama dari sisi UI (kembali ke keadaan belum-connect + pesan yang terbaca).
+- **Mode baca**: halaman tetap ter-render tanpa wallet (bukan halaman kosong); lapisan near-connect
+  hanya di-mount di browser.
+- **Belum diklaim**: connect dengan wallet testnet nyata + persistensi setelah reload (butuh akun
+  testnet & browser; jalur emas Playwright = TASK-008).
+
 ## Acceptance Criteria
 
 - Given belum connect, When klik Connect lalu approve, Then **alamat + saldo** tampil di header dan bertahan setelah reload.
+  - ⚠️ Separuh terverifikasi (TASK-007): alamat + saldo tampil. "Bertahan setelah reload" belum diuji
+    dengan wallet nyata — lihat §Status implementasi.
+- **AC-WALLET-2/3** (tolak popup → pesan "dibatalkan", kembali `disconnected`; wallet tak terpasang →
+  hint install, bukan crash): pesannya ada (`auth.error.rejected`, `auth.error.wallet_unavailable`)
+  dan teruji di unit dengan error yang disimulasikan; perilaku wallet nyata = TASK-008.
+- **AC-WALLET-4** (disconnect → alamat dihapus dari state, kembali `disconnected`): ✅ teruji.

@@ -1,8 +1,12 @@
-import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 
+import { AppHeader } from "@/features/auth/components/AppHeader";
+import { WalletProvider } from "@/features/auth/components/WalletProvider";
 import { t } from "@/i18n";
 
+import { QueryProvider } from "./QueryProvider";
+
+import type { Metadata } from "next";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -23,7 +27,14 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <QueryProvider>
+          <WalletProvider>
+            <AppHeader />
+            {children}
+          </WalletProvider>
+        </QueryProvider>
+      </body>
     </html>
   );
 }

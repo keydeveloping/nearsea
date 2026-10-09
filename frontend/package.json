@@ -16,12 +16,17 @@
     "format:check": "prettier --check ."
   },
   "dependencies": {
+    "@hot-labs/near-connect": "0.11.4",
+    "@tanstack/react-query": "5.104.1",
+    "near-connect-hooks": "1.1.6",
     "next": "16.4.0",
     "react": "19.3.0",
     "react-dom": "19.3.0"
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "^4",
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/react": "^16.3.3",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

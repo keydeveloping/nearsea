@@ -1,0 +1,69 @@
+{
+  "errors": {
+    "INVALID_ALIAS": "Display name must be 32 characters or fewer",
+    "INVALID_BIO": "Bio must be 280 characters or fewer",
+    "INVALID_AVATAR": "That avatar URL isn't allowed",
+    "INVALID_PRICE": "Price is below the minimum (0.01 Ⓝ)",
+    "INVALID_ACCOUNT_ID": "That account name isn't valid",
+    "INVALID_CURSOR": "This page has expired — start over",
+    "INVALID_QUERY": "Check your search and try again",
+    "INVALID_REASON": "Please choose a reason",
+    "INVALID_TARGET": "That item can't be reported",
+    "INVALID_ROYALTY": "Royalty must be 10% or less",
+
+    "AUTH_NONCE_UNKNOWN": "Sign-in request expired — please try again",
+    "AUTH_NONCE_EXPIRED": "Sign-in took too long — please try again",
+    "AUTH_NONCE_USED": "This sign-in was already used — please try again",
+    "AUTH_MESSAGE_MISMATCH": "Signature doesn't match this site — please try again",
+    "AUTH_SIGNATURE": "Signature couldn't be verified — please try again",
+    "AUTH_KEY_NOT_FOUND": "No active key found for this account",
+    "AUTH_SESSION_EXPIRED": "Your session expired — please sign in again",
+    "AUTH_TOKEN_INVALID": "Session is invalid — please sign in again",
+    "AUTH_REFRESH_INVALID": "Session expired — please sign in again",
+    "AUTH_REFRESH_REUSED": "Session ended for security — please sign in again",
+
+    "FORBIDDEN_ADMIN": "You don't have admin access",
+    "FORBIDDEN_SCOPE": "You don't have permission for this action",
+    "FORBIDDEN_SELF_BUY": "You can't buy your own item",
+    "FORBIDDEN_BUYER": "This listing is reserved for a specific buyer",
+
+    "NOT_FOUND_ACCOUNT": "Account not found",
+    "NOT_FOUND_TOKEN": "This item no longer exists",
+    "NOT_FOUND_COLLECTION": "Collection not found",
+    "NOT_FOUND_REPORT": "Report not found",
+    "NOT_FOUND_BLOCKLIST": "That entry isn't in the blocklist",
+    "NOT_FOUND_BUNDLE": "This bundle no longer exists",
+
+    "CONFLICT_SOLD": "Already sold — your funds were returned",
+    "CONFLICT_STALE": "This listing is no longer valid",
+    "CONFLICT_ALREADY_LISTED": "This item is already listed",
+    "CONFLICT_OFFER_EXISTS": "You already have an active offer on this item",
+    "CONFLICT_PRICE_CHANGED": "The price changed — review and confirm again",
+    "CONFLICT_REPORT_EXISTS": "You already reported this today",
+    "CONFLICT_ALREADY_DECIDED": "This report was already decided",
+    "CONFLICT_ALREADY_BLOCKED": "That item is already blocked",
+    "CONFLICT_ALREADY_TAKEN": "That name is already taken — choose another",
+    "CONFLICT_PHASE_OVERLAP": "Mint phases can't overlap",
+    "CONFLICT_PRE_VALIDATE_FAILED": "This bundle can't be bought — one item is no longer valid",
+    "CONFLICT_BUNDLE_TOO_MANY": "Maximum 10 items per bundle",
+    "CONFLICT_BUNDLE_ITEM_INVALID": "This item is already in an active bundle",
+
+    "LAUNCHPAD_PHASE_INACTIVE": "Mint isn't open right now",
+    "LAUNCHPAD_NOT_ALLOWED": "You're not on this phase's allowlist",
+    "LAUNCHPAD_ALLOCATION_EXHAUSTED": "This phase is sold out",
+    "LAUNCHPAD_MAX_PER_WALLET": "You've reached the mint limit per wallet",
+    "LAUNCHPAD_PRICE_MISMATCH": "The amount doesn't match this phase's price",
+
+    "ADMIN_STEPUP_REQUIRED": "Signature confirmation required for this action",
+    "ADMIN_STEPUP_INVALID": "Confirmation signature is invalid — try again",
+
+    "RATE_LIMITED": "Too many requests — try again shortly",
+
+    "CHAIN_REVERT": "Transaction failed — nothing was charged beyond network fees",
+    "CHAIN_TIMEOUT": "Network is slow — check your transaction before retrying",
+    "CHAIN_INSUFFICIENT_DEPOSIT": "Not enough NEAR to cover the price and network fees",
+    "CHAIN_PAUSED": "Marketplace is temporarily paused",
+
+    "SERVER_ERROR": "Something went wrong — please try again"
+  }
+}

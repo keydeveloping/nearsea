@@ -52,6 +52,29 @@
   approval ([contracts/market.md](../docs/contracts/market.md) §2a). **Belum diklaim**: paruh buy TC-002,
   race TC-016/017, TC-022, TC-048, angka gas penuh — butuh TASK-005/006. Sisa slice M1: TASK-005 → 006,
   dan jalur FE 007 → 008.
+- **Status TASK-007 (2026-10-08, ronde 25): ✅ `done` (kode).** Wallet connect di
+  `frontend/features/auth/` (`@hot-labs/near-connect` 0.11.4 + `near-connect-hooks` 1.1.6, di-pin
+  exact): state app-wide via `WalletContext`/`useWallet()` dengan satu tipe `WalletApi`, header dengan
+  indikator jaringan + kontrol wallet, banner peringatan jaringan + flag gerbang
+  `transactionsDisabled`, mode baca tanpa wallet. Gate FE hijau: `lint`, `format:check`, `typecheck`,
+  `test` (**52 test**), `build` (4/4 statis); bundle bersih dari secret. **Belum diklaim**: connect
+  dengan wallet testnet nyata (butuh akun testnet + browser; jalur emas Playwright = TASK-008), dan
+  penonaktifan tombol aksi berbasis `transactionsDisabled` (tombol aksi baru ada di TASK-008). Sisa
+  slice M1: TASK-008 saja. Lihat juga TASK-037 (tinjauan dependency `function-call-key-plugin`).
+- **Status TASK-008 (2026-10-09, ronde 26): 🔄 `in-progress` (kode lengkap, satu AC menunggu deploy).**
+  UI browse/list/buy di `frontend/features/marketplace/` + `lib/format/fees.ts`,
+  `lib/errors/market-errors.ts`, `lib/near/contracts.ts`, namespace i18n `marketplace`/`errors`.
+  Listing = **dua transaksi** (`nft_approve` → baca `approval_id` konkret → `list_nft_for_sale` +
+  deposit storage NEP-145); buy = **re-verify sebelum signing** (`CONFLICT_PRICE_CHANGED`/
+  `CONFLICT_STALE` tanpa tanda tangan) dengan deposit = harga hasil verifikasi; stale disembunyikan
+  dari grid dan ditampilkan "no longer available" di halaman token; breakdown fee/royalti BigInt
+  sebelum konfirmasi. Gate FE hijau: `lint`, `format:check`, `typecheck`, `test` (**127 test**,
+  20 di antaranya jalur emas browse→list→buy), `build` (`/` statis + `/token/...` partial prerender).
+  **Yang belum**: jalur emas **Playwright** dengan dua akun testnet — butuh kontrak ter-deploy di
+  testnet, dan deploy testnet **wajib persetujuan user** ([git-workflow.md](../docs/development/git-workflow.md) §3).
+  Prasyarat baru: `@tanstack/react-query` + `NEXT_PUBLIC_MARKET_CONTRACT_ID`. **Koreksi**: klaim tiket 09
+  bahwa kode `function-call-key-plugin` ter-tree-shake dari bundle **tidak benar** (kode penandatanganan
+  lokal ada di chunk klien) → TASK-037 naik prioritas.
 
 - **Status TASK-005 (2026-10-08, ronde 23): ✅ `done` (kode).** Jalur settlement di `market/src/lib.rs`:
   `buy` (tulis `pending_purchases` sebelum optimistic removal — INV-031) → `process_purchase` (dual

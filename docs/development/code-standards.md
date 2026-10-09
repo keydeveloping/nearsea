@@ -56,7 +56,7 @@ komentar itu tidak perlu. `TODO` hanya boleh ada bila menunjuk task di
 
 ## 5. Urutan import
 
-**TypeScript** — satu aturan, dijaga ESLint (`import/order`, PROPOSED dikonfigurasi di §9):
+**TypeScript** — satu aturan, dijaga ESLint (`import/order`, **AKTIF** sejak TASK-038 — lihat §9):
 
 ```text
 1. node builtins        (node:fs, node:path)
@@ -64,8 +64,12 @@ komentar itu tidak perlu. `TODO` hanya boleh ada bila menunjuk task di
 3. internal alias       (@/lib/…, @/features/…, @/components/…)
 4. relative parent      (../foo)
 5. relative sibling     (./bar)
-6. type-only imports    (import type { … })
+6. index                (./ — barrel/direktori; jarang dipakai)
+7. type-only imports    (import type { … })
 ```
+
+- Urutan ini dipetakan apa adanya ke `groups` di `import/order` (§9) — jangan menambah/mengurangi
+  grup tanpa memperbarui daftar ini, supaya konfigurasi dan dokumen tidak berbeda.
 
 - Satu baris kosong antar grup; urut alfabetis **di dalam** grup.
 - Dilarang import lintas-fitur langsung (`features/a` → `features/b`) — lewat `lib/` (frontend-architecture §1).
@@ -149,20 +153,39 @@ defineConfig([
   ...nextVitals,   // eslint-config-next/core-web-vitals
   ...nextTs,       // eslint-config-next/typescript
   {
+    settings: { "import/internal-regex": "^@/" },   // `@/*` = berkas repo, bukan paket
     rules: {
       "@typescript-eslint/no-explicit-any": "error",
       "@typescript-eslint/consistent-type-imports": "error",
       "no-console": ["warn", { allow: ["warn", "error"] }],
+      "import/order": ["error", {
+        groups: ["builtin", "external", "internal", "parent", "sibling", "index", "type"],
+        "newlines-between": "always",
+        alphabetize: { order: "asc", caseInsensitive: true },
+      }],
+      "react/jsx-no-useless-fragment": "error",
     },
   },
+  // + `no-restricted-imports` per lapisan, lihat di bawah
 ]);
 ```
 
 - `any` = error (bukan warning); pengecualian harus lewat komentar ber-alasan + `eslint-disable-next-line` — dan tetap dibahas di review.
 - Prettier untuk format (dijalankan terpisah: `pnpm format:check`); konflik aturan diformat oleh Prettier.
-- **Belum diaktifkan** (butuh plugin tambahan; dipasang saat strukturnya ada — TASK-007/008): `import/order`,
-  `no-restricted-imports` (larangan impor lintas-fitur §5), `react/jsx-no-useless-fragment`. Aturan §5 tetap
-  mengikat sebagai konvensi review sampai lint-nya ada.
+- **`import/order`** menegakkan urutan §5: grup `type` di akhir, satu baris kosong antar grup,
+  alfabetis di dalam grup. `settings["import/internal-regex"]` wajib — tanpa itu alias `@/` terbaca
+  sebagai paket eksternal dan tercampur dengan `react`/`next`.
+- **`no-restricted-imports`** menegakkan kolom *Dilarang impor* tabel batas dependensi [frontend-architecture.md](../architecture/frontend-architecture.md) §1,
+  lewat override per-`files` (tidak bisa di satu blok karena `app/` justru boleh impor semuanya):
+  `features/**` dilarang impor `@/features/*` (lintas-fitur); `lib/**` dilarang `@/features/*`,
+  `@/app/*`, dan `@/components/ui/*`; `components/ui/**` dilarang `@/features/*`, `@/app/*`,
+  `@/stores/*`, dan `@/lib/*` **kecuali `@/lib/format`** (pola negasi `!@/lib/format`).
+- **`react/jsx-no-useless-fragment`** menolak `<>…</>` yang membungkus ≤1 anak.
+- Ketiga aturan aktif sejak **TASK-038** (2026-10-09); sebelumnya tertunda karena plugin-nya dianggap
+  perlu dipasang manual — ternyata `eslint-config-next` sudah menyediakan `eslint-plugin-import` dan
+  `eslint-plugin-react`, jadi **tanpa dependency baru**. Aktivasi memunculkan 64 pelanggaran
+  `import/order` (semua auto-fixable, hanya urutan import); nol pelanggaran `no-restricted-imports`
+  dan `jsx-no-useless-fragment`, jadi batas lapisan & fragment memang sudah bersih.
 
 **Rust**: `cargo fmt` (format) + `cargo clippy --all-targets -- -D warnings` (lint). Dilarang `#[allow(...)]` tanpa komentar alasan; `#[allow(clippy::…)]` yang menonaktifkan lint keamanan (`arithmetic_side_effects` bila diaktifkan) = review wajib.
 

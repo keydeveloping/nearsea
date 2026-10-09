@@ -36,8 +36,8 @@ Milestone: M0 | M1 | M2 | M3 | M4
 | TASK-004 | Kontrak market: storage NEP-145 + listing 2-tx + dual verification | contract | P0 | 002 | features/marketplace | done | 4 | List/cancel + storage deposit lolos (INV-020, TC-002) | M1 |
 | TASK-005 | Kontrak market: buy + nft_transfer_payout + resolve/refund (+ private listing & bundle — dgn TASK-010) | contract | P0 | 004 | features/marketplace.md + payments.md | done | 5 | Buy sukses + refund + race 20 pembeli lolos (INV-001/016, TC-003/016) | M1 |
 | TASK-006 | Sandbox tests 2-kontrak **subset slice**: mint->list->buy->refund + race (TC-001/002/013/016/017/020/022/044/047/048) + INV slice (001..016, 023, 030, 031) | contract | P0 | 002-005 | testing/test-cases.md (Slice M1) | done | 4 | Suite sandbox hijau; semua INV **slice** punya test (INV M1+ di-defer eksplisit) | M1 |
-| TASK-007 | Frontend: connect wallet (near-connect) | frontend | P0 | 001 | features/auth | todo | 2 | Connect/disconnect + banner network jalan di testnet | M1 |
-| TASK-008 | Frontend: browse/listings/buy UI (Next.js + Tailwind, EN + i18n) — **tanpa prasyarat branding** (default Tailwind) | frontend | P0 | 007 | features/marketplace | todo | 5 | Browse->list->buy end-to-end via UI (jalur emas Playwright) | M1 |
+| TASK-007 | Frontend: connect wallet (near-connect) | frontend | P0 | 001 | features/auth | done | 2 | Connect/disconnect + banner network jalan di testnet | M1 |
+| TASK-008 | Frontend: browse/listings/buy UI (Next.js + Tailwind, EN + i18n) — **tanpa prasyarat branding** (default Tailwind) | frontend | P0 | 007 | features/marketplace | in-progress | 5 | Browse->list->buy end-to-end via UI (jalur emas Playwright) | M1 |
 | TASK-008b | Sesi desain custom branding (warna, font, tokens) → design system | design | P0 (sebelum UI) | — | 04-ux-ui-spec.md | todo | 3 | Token warna/font + primitives `components/ui/` dipakai TASK-008/021 | M1+ |
 | TASK-009 | Offers (escrow, accept, cancel, expire) — **MVP** | contract | P0 | 004 | features/marketplace | todo | 4 | Offer lifecycle + refund lolos (INV-005/006/024, TC-004/018) | M1+ |
 | TASK-010 | Private listing + bundle — **MVP** | contract | P0 | 009 | features/marketplace | todo | 3 | Private guard + bundle pre-validasi lolos (INV-025/026/028, TC-009/011) | M1+ |
@@ -67,6 +67,33 @@ Milestone: M0 | M1 | M2 | M3 | M4
 | TASK-034 | Prep scaling: app stateless + pooling + rencana read replica/LB (aktif saat trafik naik) | infra | P1 (fase 2) | 028 | architecture/scaling | todo | 3 | App stateless terverifikasi + rencana replica/LB tertulis | M2 |
 | TASK-035 | Audit dependensi: tinjau ulang advisory tanpa patch yang di-*ignore* (`--ignore-unfixable`) | infra | P2 | 001 | development/ci-cd.md §3 | todo | 0.5 | Advisory yang di-ignore punya keputusan tercatat: diperbaiki, diganti, atau diterima + alasan | M1+ |
 | TASK-036 | **Fix storage accounting `nft_transfer` atas token ter-approve (temuan F1)** — transfer gagal `ExcessiveUnlockError` bila penerima belum punya token; storage entry approval dibebaskan ke **penerima** padahal ditagih ke **owner** | contract | P0 | 002 | contracts/nft-collection.md §4/§7 + security/smart-contract-security-architecture.md §15 | todo | 2 | `nft_transfer` token ter-approve ke penerima terdaftar berhasil (regression test sandbox) | M1 |
+| TASK-037 | Tinjau `function-call-key-plugin` (dependency transitif `near-connect-hooks`): menyimpan private key function-call di `localStorage` | security | P0 | 007 | security/key-management.md + features/auth.md | todo | 1 | Keputusan tercatat: jalur dinonaktifkan permanen (tanpa `addFunctionCallKey`), atau dependency diganti, atau diterima + alasan tertulis. **Kode plugin terbukti ADA di bundle klien (ronde 26) — bukan alasan tree-shaking** | M1+ |
+| TASK-038 | Aktifkan lint yang tertunda setelah struktur `features/` ada: `import/order`, `no-restricted-imports` (larangan impor lintas-fitur), `react/jsx-no-useless-fragment` | frontend | P2 | 007 | development/code-standards.md §9 | done | 0.5 | Ketiga aturan aktif di `eslint.config.mjs` dan gate FE tetap hijau | M1+ |
+| TASK-039 | Advisory **RUSTSEC-2026-0285** (`rustls 0.23.43`, TLS 1.3 handshake) — perbaikan `>=0.23.45` bentrok dengan pin `aws-lc-rs =1.16.2` dari `near-crypto` | security/infra | P0 (blok PR #14) | 006 | development/ci-cd.md §3 + security/security-requirements.md | todo | 1 | Keputusan tercatat: konflik bump dipecahkan (mis. bump `near-sdk`/`near-crypto`), ATAU advisory diterima + alasan tertulis di `audit.toml` (bukan di-ignore diam-diam) | M1 |
+
+> **TASK-039 (ronde 28, temuan saat mendaratkan tiket 07/08):** `cargo audit` di CI menemukan
+> **RUSTSEC-2026-0285** — `rustls 0.23.43` "TLS 1.3 handshake messages incorrectly accepted across
+> encryption level boundaries", perbaikan `>=0.23.45`. Advisory ini **baru terbit** di antara run CI
+> 06:48Z (hijau) dan 06:54Z (gagal) pada 2026-10-09, jadi bukan disebabkan perubahan proyek.
+> **Jangkauan terverifikasi**: `rustls` **hanya** terjangkau lewat
+> `nearsea-market → near-workspaces (dev-dependency) → near-sandbox → ureq → rustls`. Kontrak
+> produksi (`nearsea-nft-collection`, `nearsea-factory`) **tidak** menyentuhnya, dan `dev` sebelum
+> tiket 08 bahkan tidak punya `rustls` sama sekali — advisory ini muncul karena tiket 08 menambahkan
+> `near-workspaces`. **Kenapa belum diperbaiki**: `cargo update -p rustls --precise 0.23.45` gagal —
+> `rustls 0.23.45` menuntut `aws-lc-rs ^1.18`, sedangkan `near-crypto` (via `near-sdk` 5.29.1, jalur
+> produksi) mem-pin `aws-lc-rs = "=1.16.2"` **exact**. Rilis `near-crypto` stabil terbaru masih
+> `0.38.0-rc.3` (prerelease), jadi belum ada rilis stabil yang melonggarkan pin itu. Kebijakan repo
+> ([ci-cd.md](../docs/development/ci-cd.md) §3) melarang men-ignore advisory yang **punya** perbaikan,
+> jadi keputusan (pecahkan konflik bump vs terima dengan alasan tertulis) adalah milik user.
+> **Jalan keluar bersih SUDAH dicari dan tidak ada (ronde 28)** — tiga kandidat diuji, semuanya buntu:
+> (a) `near-workspaces` diganti ke fitur `native-tls` (menghapus `reqwest/rustls`) — **tidak cukup**:
+> `rustls` tetap masuk lewat `near-sandbox 0.3.16 → ureq 3.4.2`, jalur terpisah yang tidak tersentuh
+> fitur itu (perubahan sudah di-revert, tidak meninggalkan jejak); (b) bump `near-sandbox` /
+> `ureq` — keduanya sudah versi terbaru yang kompatibel (`near-workspaces 0.23` mengunci
+> `near-sandbox 0.3.x`); (c) bump `near-crypto`/`near-sdk` — hanya `0.38.0-rc.3` (prerelease) yang
+> melonggarkan pin, dan prerelease tidak dipakai untuk kontrak produksi. Artinya pilihannya menyempit
+> ke **terima + alasan tertulis** atau **tunggu upstream**.
+> **Dampak**: PR #14 (tiket 07/08) terblokir check wajib `Dependency audit` sampai ini diputuskan.
 
 > **TASK-031 `done` (ronde 18c):** repo dijadikan **publik** oleh user → branch protection tersedia (sebelumnya 403 "butuh GitHub Pro" saat private). Proteksi **aktif** di `dev`/`testnet`/`mainnet`: PR wajib, force-push & delete diblokir **termasuk admin** (`enforce_admins`), 5 required status checks, conversation resolution; `strict` (branch up-to-date) di testnet/mainnet. Tag protection via ruleset `protect-release-tags` (`contract-v*`/`web-v*`/`indexer-v*`: delete + update diblokir). **Bukti**: push langsung ke `dev` ditolak GitHub — `GH006 Protected branch update failed … Changes must be made through a pull request. 5 of 5 required status checks are expected.`
 > **Required approval = 0 (ditunda, keputusan user ronde 18c):** repo hanya punya satu akun dan GitHub melarang self-approve, jadi approval 2/1 akan mengunci semua PR. Naikkan ke `testnet`=1 / `mainnet`=2 saat ada maintainer kedua ([git-workflow.md](../docs/development/git-workflow.md) §16). `require_code_owner_reviews` juga ditunda karena alasan yang sama.
@@ -206,6 +233,73 @@ Milestone: M0 | M1 | M2 | M3 | M4
 > butuh GitHub Pro (API 403 "Upgrade to GitHub Pro or make this repository public") meski token punya `admin`;
 > hal yang sama menonaktifkan secret scanning GitHub-native + Dependabot security updates. **User menjadikan
 > repo publik**, sehingga blokir itu hilang dan proteksi dipasang (lihat catatan `done` di atas).
+
+> **TASK-007 `done` (ronde 25):** wallet connect di `frontend/features/auth/` — `@hot-labs/near-connect`
+> 0.11.4 + `near-connect-hooks` 1.1.6 (`NearProvider`/`useNearWallet`), keduanya di-pin **exact**
+> (`frontend-security.md` §9). State wallet app-wide lewat `WalletContext` + `useWallet()` dengan satu
+> tipe `WalletApi`; lapisan near-connect **hanya di-mount di browser** (constructor-nya memakai
+> `window`/IndexedDB + fetch manifest), sehingga halaman tetap ter-prerender statis dan app jalan tanpa
+> wallet. Pemilih wallet = popup bawaan near-connect (tanpa daftar hardcoded). **Gate hijau**: `pnpm lint`,
+> `format:check`, `typecheck`, `test` (**52 test**), `build` (4/4 halaman statis); bundle bersih dari
+> secret **dan** dari kode penandatanganan lokal; `pnpm audit` hanya menyisakan advisory TASK-035 yang
+> sudah dikecualikan. **Belum diklaim**: connect di testnet dengan wallet nyata + persistensi setelah
+> reload (jalur emas Playwright = TASK-008), dan penonaktifan tombol aksi berbasis `transactionsDisabled`
+> (baru ada tombol aksi di TASK-008).
+> **Catatan implementasi**: (1) `tsconfig.target` ES2017 → **ES2020** (literal `BigInt` wajib untuk
+> aritmetika yoctoNEAR); (2) `i18n` diperluas ke kedalaman kunci bebas (`auth.error.rejected`) — konvensi
+> `code-standards.md` §10 memakai tiga segmen; (3) `vitest.setup.ts` ditambahkan untuk `cleanup()` RTL
+> (Vitest jalan tanpa globals); (4) env dibaca sebagai `NEXT_PUBLIC_NEAR_NETWORK`/`_RPC_URL`/`_RPC_FALLBACKS`.
+> **Review kode menemukan 7 cacat nyata** (disconnect tampil sebagai "Connecting…", Retry selalu connect,
+> error disconnect tak terlihat, placeholder `{network}` tak tersubstitusi, efek probe berjalan tanpa
+> henti karena `getBalance` dipakai sebagai dependensi, dua komponen dalam satu file, dependency tidak
+> di-pin) — semuanya diperbaiki + test regresi; rincian di `.scratch/m1-slice/issues/09-fe-connect-wallet.md`.
+> **Temuan keamanan (dicatat, bukan diperbaiki di sini):** plugin `function-call-key-plugin`
+> (dependency `near-connect-hooks`) menyimpan **private key** function-call di `localStorage`; proyek ini
+> tidak pernah memanggil `signIn({ addFunctionCallKey })`, jadi jalurnya tidak aktif. **Koreksi ronde 26**:
+> klaim sebelumnya bahwa kode plugin "ter-tree-shake dari bundle" **tidak benar** — `next build` produksi
+> tetap memuat `createLocalKeyFor`/`access_key::plugin`/`ed25519:` di chunk klien (diverifikasi ulang pada
+> build commit `c7e081b` maupun sesudahnya). Jalurnya tetap tidak aktif karena tidak ada pemanggil, tetapi
+> kode penandatanganan lokal ada di bundle user → **TASK-037** naik prioritas dan tidak boleh ditutup dengan
+> alasan tree-shaking.
+
+> **TASK-008 `in-progress` (ronde 26):** UI browse/list/buy terimplementasi di `frontend/features/marketplace/`
+> (`ExplorePage`, `TokenPage`, `ListingGrid`/`ListingCard`, `ListModal`, `BuyModal`, `TokenActions`,
+> `TokenMedia`) + `lib/format/fees.ts` (breakdown fee/royalti, BigInt), `lib/errors/market-errors.ts`
+> (pemetaan panic → kode registry), `lib/near/contracts.ts` (kontrak dari env), dan namespace i18n
+> `marketplace`/`errors`. Alur listing **dua transaksi** dengan `approval_id` konkret dari `nft_token` +
+> deposit storage NEP-145; buy **re-verify sebelum signing** (`CONFLICT_PRICE_CHANGED`/`CONFLICT_STALE`
+> tanpa tanda tangan) dan deposit = harga hasil verifikasi. **Gate hijau**: `lint`, `format:check`,
+> `typecheck`, `test` (**127 test**, 20 di antaranya jalur emas browse→list→buy), `build` (`/` statis,
+> `/token/...` partial prerender = "SSR shell + CSR data"). Prasyarat baru: `@tanstack/react-query`
+> (diwajibkan `frontend-architecture.md` §Data fetching) dan `NEXT_PUBLIC_MARKET_CONTRACT_ID`.
+> **Belum selesai — satu-satunya AC yang tersisa:** jalur emas **Playwright** dengan dua akun testnet.
+> Blocker-nya bukan kode: kontrak harus ter-deploy di testnet, dan deploy testnet **wajib persetujuan user**
+> (`git-workflow.md` §3). Test jalur emas saat ini berjalan di Vitest+RTL dengan chain palsu — jalur
+> komponen/hook yang sama, tanpa browser dan tanpa wallet nyata.
+
+> **TASK-038 `done` (ronde 27):** tiga aturan lint yang tertunda aktif di `frontend/eslint.config.mjs`
+> **tanpa dependency baru** — dugaan lama bahwa plugin-nya perlu dipasang manual tidak benar:
+> `eslint-config-next` 16.4.0 sudah membawa `eslint-plugin-import` 2.32.0 + `eslint-plugin-react` 7.37,
+> jadi namespace `import`/`react` sudah terdaftar. Yang dipasang: `import/order` (grup §5 — `type` di
+> akhir, satu baris kosong antar grup, alfabetis; butuh `settings["import/internal-regex"] = "^@/"`
+> supaya alias repo tidak terbaca sebagai paket eksternal), `react/jsx-no-useless-fragment`, dan
+> `no-restricted-imports` lewat override per-`files` untuk menegakkan tabel batas dependensi
+> [frontend-architecture.md](../docs/architecture/frontend-architecture.md) §1 (`features/**` → dilarang
+> `@/features/*`; `lib/**` → dilarang `@/features/*` + `@/app/*` + `@/components/ui/*`; `components/ui/**`
+> → dilarang `@/features/*` + `@/app/*` + `@/stores/*` + `@/lib/*` kecuali `@/lib/format`). Satu blok
+> tunggal tidak bisa dipakai karena `app/` justru boleh mengimpor semuanya.
+> **Bukti**: aktivasi memunculkan **64 pelanggaran `import/order`** (semua auto-fixable; murni urutan
+> import, tidak ada perubahan perilaku) dan **nol** pelanggaran `no-restricted-imports` /
+> `jsx-no-useless-fragment` — batas lapisan dan fragment memang sudah bersih. Ketiga aturan
+> **diverifikasi benar-benar menembak** dengan menanam pelanggaran sengaja (impor `@/features/*` dari
+> `features/`, `lib/`, `components/ui/`; `lib/`→`@/components/ui/*`; `components/ui/`→`@/app/*`,
+> `@/stores/*`, `@/lib/near/*`; fragmen satu anak) lalu menghapusnya kembali — sekaligus dipastikan
+> impor yang **boleh** (`lib/`→`@/lib/format`, `components/ui/`→`@/lib/format`, `features/`→
+> `components/ui/`+`lib/format`) tetap lolos. Gate FE hijau:
+> `lint`, `format:check`, `typecheck`, `test` (**127 test**), `build`. Dokumen disinkronkan:
+> [code-standards.md](../docs/development/code-standards.md) §5 + §9.
+> **Catatan**: `@/*` diklasifikasikan `import/order` sebagai **internal**, jadi urutan file yang sudah
+> ada (`components/ui` → `i18n` → `lib`) sesuai §5 dan tidak perlu diubah.
 
 > Penomoran ID final (ronde 1–13 + audit). Perubahan scope → update lewat prosedur DOCUMENTATION-MAP.
 > Kolom Status/Estimate/Done-when/Milestone ditambahkan ronde 15; status awal semua `todo`.

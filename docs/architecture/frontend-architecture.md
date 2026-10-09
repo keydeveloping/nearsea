@@ -31,6 +31,29 @@ frontend/
 - `near-connect` + hooks resminya — semua wallet yang didukung near-connect aktif sejak v1 (daftar resmi: docs.near.org/tools/near-connect; HOT, Meteor, Nightly, dsb.).
 - Jaringan: ikut `NEAR_NETWORK` env (testnet MVP).
 
+**Implementasi (TASK-007)** — detail di `features/auth/`:
+
+- Paket: `@hot-labs/near-connect` + `near-connect-hooks` (`NearProvider`, `useNearWallet`).
+  `lib/near/wallet-connector.ts` membangun konfigurasi connector dari env; **tidak ada daftar
+  wallet hardcoded** — daftar berasal dari manifest near-connect.
+- `features/auth/components/WalletProvider.tsx` menyediakan state wallet app-wide lewat
+  `WalletContext` + hook `useWallet()`. Lapisan near-connect **hanya di-mount di browser**
+  (constructor-nya memakai `window`/IndexedDB + fetch manifest), sehingga halaman tetap
+  ter-render statis saat SSR dan app jalan tanpa wallet.
+- **Bentuk state**: satu tipe `WalletApi` (`status`/`accountId`/`network`/`balanceYocto`/
+  `accountStatus`/`transactionsDisabled`/`errorCode` + aksi `connect`/`disconnect`/`retry`),
+  dibangun satu tempat di `features/auth/wallet-api.ts`. Status: `loading` / `disconnected` /
+  `connecting` / `connected` / `disconnecting` / `error`.
+- Pemilih wallet = popup bawaan near-connect (bukan modal buatan sendiri); header app hanya
+  menampilkan keadaan di atas.
+- **Network mismatch → `transactionsDisabled`**: near-connect tidak mengekspos network wallet, jadi
+  sinyalnya adalah **akun tidak ada di jaringan terkonfigurasi** (probe RPC `view_account` gagal
+  "account does not exist"). Banner peringatan + flag gerbang `transactionsDisabled` disediakan di
+  sini; **tombol aksi yang men-disable dirinya lewat flag itu milik TASK-008**. Batasan & positif/
+  negatif palsu didokumentasikan di [features/auth.md](../features/auth.md) §Status implementasi.
+- Nilai Ⓝ ditampilkan lewat `lib/format/money.ts` (`formatNear`, tipe `YoctoNear`) — aritmetika
+  BigInt, tanpa float.
+
 ## Konversi & format
 
 - Nilai Ⓝ selalu `NEAR.fromDecimal()` / `formatUnits` — dilarang aritmetika float pada yoctoNEAR.
@@ -206,10 +229,23 @@ i18n/                       (kunci copy EN)
 |---|---|---|---|
 | `NEAR_NETWORK` | `NEXT_PUBLIC_` | testnet/mainnet | Banner network permanen |
 | `NEAR_RPC_URL` + fallbacks | `NEXT_PUBLIC_` | daftar provider | Urutan failover |
-| `MARKET_CONTRACT_ID`, `FACTORY_CONTRACT_ID` | `NEXT_PUBLIC_` | alamat kontrak | — |
+| `MARKET_CONTRACT_ID` | `NEXT_PUBLIC_` | alamat kontrak market | Browse/list/buy (TASK-008) |
+| `FACTORY_CONTRACT_ID` | `NEXT_PUBLIC_` | alamat kontrak factory | fase launchpad |
 | base API report | — | same-origin `/api/*` (default) | `API_BASE_URL` **PROPOSED** hanya bila API dipisah origin |
 | `IPFS_GATEWAY` | `NEXT_PUBLIC_` | gateway allowlist | fase lanjut |
 | `JWT_SECRET`, `DATABASE_URL` | **tanpa** prefix | — | **DILARANG** di bundle FE |
+
+- **Nama literal yang dibaca kode** (TASK-007): `NEXT_PUBLIC_NEAR_NETWORK`,
+  `NEXT_PUBLIC_NEAR_RPC_URL`, `NEXT_PUBLIC_NEAR_RPC_FALLBACKS` — modul `lib/near/network.ts`.
+  (TASK-008) `NEXT_PUBLIC_MARKET_CONTRACT_ID` — modul `lib/near/contracts.ts`. Kontrak **koleksi NFT**
+  tidak punya var global: ia bagian dari route `/token/[contract]/[tokenId]` dan sudah tercatat di
+  setiap baris listing, jadi tidak ada alamat kedua yang bisa menyimpang dari data on-chain.
+  `.env.example` memuat keduanya (tanpa & dengan prefix) agar tidak ada nilai yang diam-diam
+  berbeda antara proses server dan bundle browser.
+- Nilai `NEAR_NETWORK` di luar `testnet`/`mainnet` = **gagal saat start**, bukan fallback
+  diam-diam ke testnet: salah jaringan = transaksi di jaringan yang salah. `NEXT_PUBLIC_MARKET_CONTRACT_ID`
+  yang kosong **tidak** menggagalkan start: UI menampilkan keadaan "belum dikonfigurasi" supaya build
+  & halaman baca tetap jalan sebelum deploy.
 
 ## 8. Pendekatan testing frontend
 

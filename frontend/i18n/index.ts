@@ -1,21 +1,38 @@
+import auth from "./en/auth.json";
 import common from "./en/common.json";
+import errorsCatalog from "./en/errors.json";
+import marketplace from "./en/marketplace.json";
 
-const messages = { common } as const;
+/**
+ * `errors.json` menyimpan katalognya di dalam pembungkus `errors` (bentuk yang ditetapkan
+ * docs/development/error-handling.md §8), jadi yang didaftarkan adalah isinya — supaya kuncinya
+ * tetap `errors.<CODE>` dan bukan `errors.errors.<CODE>`.
+ */
+const messages = {
+  auth,
+  common,
+  marketplace,
+  errors: errorsCatalog.errors,
+} as const;
 
-type Namespace = keyof typeof messages;
+/** Semua jalur kunci bertitik, dihitung dari bentuk pesan (kunci salah = error build). */
+type DottedPaths<T, Prefix extends string = ""> = {
+  [K in keyof T & string]: T[K] extends Record<string, unknown>
+    ? DottedPaths<T[K], `${Prefix}${K}.`>
+    : `${Prefix}${K}`;
+}[keyof T & string];
 
-export type MessageKey = {
-  [N in Namespace]: `${N & string}.${keyof (typeof messages)[N] & string}`;
-}[Namespace];
+export type MessageKey = DottedPaths<typeof messages>;
 
 function lookup(key: MessageKey): string | undefined {
-  const separator = key.indexOf(".");
-  const namespace = key.slice(0, separator);
-  const name = key.slice(separator + 1);
-  // Satu-satunya cast: TypeScript tidak bisa memecah template literal `a.b`
-  // menjadi dua literal terpisah. `MessageKey` tetap yang menjaga pemanggil.
-  const namespaceMessages: Record<string, string> = messages[namespace as Namespace];
-  return namespaceMessages[name];
+  // Satu-satunya cast: TypeScript tidak bisa mengindeks pohon bertipe dengan
+  // segmen kunci yang sudah dipisah runtime. `MessageKey` tetap yang menjaga pemanggil.
+  let node: unknown = messages;
+  for (const segment of key.split(".")) {
+    if (typeof node !== "object" || node === null) return undefined;
+    node = (node as Record<string, unknown>)[segment];
+  }
+  return typeof node === "string" ? node : undefined;
 }
 
 /**

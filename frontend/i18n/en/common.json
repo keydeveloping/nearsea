@@ -2,5 +2,5 @@
   "appName": "NearSea",
   "tagline": "NFT marketplace on NEAR — non-custodial, on-chain royalties.",
   "networkBanner": "Network: {network}",
-  "scaffoldNotice": "Scaffold in place — marketplace UI arrives in TASK-007 and TASK-008."
+  "amountNear": "{amount} Ⓝ"
 }
