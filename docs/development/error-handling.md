@@ -135,7 +135,12 @@ idle ──submit──► submitted ──masuk blok──► included ──fi
   Tambah kode baru → update dokumen ini dulu (sesuai [DOCUMENTATION-MAP.md](../DOCUMENTATION-MAP.md) T17), baru modul kode.
 - Path modul **sudah dikunci saat scaffold (TASK-001)**: `frontend/lib/errors/` untuk sisi FE
   ([frontend-architecture.md](../architecture/frontend-architecture.md) §1), modul error server untuk API.
-  Modul FE belum dibuat — masuk bersama pemakaian pertamanya (TASK-007/008, TASK-033).
+  Modul FE belum dibuat — masuk bersama pemakaian pertamanya (TASK-008, TASK-033).
+- **Pengecualian yang disengaja (TASK-007):** `frontend/lib/near/wallet-errors.ts` mengklasifikasi error
+  **wallet** menjadi kode lokal (`rejected`/`wallet_unavailable`/`connect_failed`) — kode ini **bukan**
+  kode registry §3 (features/auth.md §Error Cases menyebutnya "lokal, tanpa kode API"), jadi tidak ada
+  kode registry yang di-duplikasi. Pesan user tetap lewat i18n (`auth.error.*`). Kalau kelak error wallet
+  perlu punya kode registry, klasifikasi ini yang dipindah ke `lib/errors/`, bukan ditulis ulang.
 - Alasan: mencegah pesan tidak konsisten antar layar, memudahkan audit (satu tempat), dan
   memastikan pemetaan panic kontrak (§4) hanya ditulis sekali.
 - Selaras dengan perilaku **Surgical Changes** di [AGENTS.md](../../AGENTS.md): ikuti pola yang
@@ -404,5 +409,5 @@ Spesifikasi agar notifikasi tidak berantakan (§6) — nilai final dapat disetel
 - Envelope + namespace + siklus tx + kebijakan notifikasi — **DECIDED (ronde 14)**.
 - Katalog i18n, status HTTP per kode, kode per domain, `requestId`, retry/backoff, toast, versioning kode (§9–§15) — **DECIDED (ronde 15)**.
 - Registry kode dilengkapi saat implementasi API (Fase 2); pemetaan panic kontrak diuji di E2E.
-- Modul error terpusat (§8) — **path dikunci TASK-001** (`frontend/lib/errors/`); modulnya sendiri dibuat bersama pemakaian pertamanya (TASK-007/008, TASK-033).
+- Modul error terpusat (§8) — **path dikunci TASK-001** (`frontend/lib/errors/`); modulnya sendiri dibuat bersama pemakaian pertamanya (TASK-008, TASK-033). TASK-007 menambah klasifikasi error **wallet** yang berdiri sendiri (`lib/near/wallet-errors.ts`) — lihat pengecualian di §8.
 - Nilai tampilan toast (durasi/posisi) — **PROPOSED** (final saat branding TASK-008b); struktur §14 mengikat.

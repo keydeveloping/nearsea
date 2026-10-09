@@ -160,9 +160,10 @@ defineConfig([
 
 - `any` = error (bukan warning); pengecualian harus lewat komentar ber-alasan + `eslint-disable-next-line` — dan tetap dibahas di review.
 - Prettier untuk format (dijalankan terpisah: `pnpm format:check`); konflik aturan diformat oleh Prettier.
-- **Belum diaktifkan** (butuh plugin tambahan; dipasang saat strukturnya ada — TASK-007/008): `import/order`,
-  `no-restricted-imports` (larangan impor lintas-fitur §5), `react/jsx-no-useless-fragment`. Aturan §5 tetap
-  mengikat sebagai konvensi review sampai lint-nya ada.
+- **Belum diaktifkan** (butuh plugin tambahan): `import/order`, `no-restricted-imports`
+  (larangan impor lintas-fitur §5), `react/jsx-no-useless-fragment`. Struktur `features/` pertama ada
+  sejak TASK-007 (`features/auth/`), jadi plugin ini kini bisa dipasang — **TASK-038**
+  (`tasks/backlog.md`). Sampai itu, aturan §5 tetap mengikat sebagai konvensi review.
 
 **Rust**: `cargo fmt` (format) + `cargo clippy --all-targets -- -D warnings` (lint). Dilarang `#[allow(...)]` tanpa komentar alasan; `#[allow(clippy::…)]` yang menonaktifkan lint keamanan (`arithmetic_side_effects` bila diaktifkan) = review wajib.
 

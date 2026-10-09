@@ -38,6 +38,12 @@
 - `BACKUP_S3_ENDPOINT` + `BACKUP_S3_KEY` + `BACKUP_S3_SECRET` (object storage backup pg_dump) — SECRET
 - `IPFS_GATEWAY`, `IPFS_PINNING_KEY` — **fase lanjut** (saat fitur mint — ronde 5)
 
+> **Frontend membaca versi ber-prefix** (TASK-007): Next.js hanya mengekspos variabel
+> `NEXT_PUBLIC_*` ke bundle browser, jadi aplikasi membaca `NEXT_PUBLIC_NEAR_NETWORK`,
+> `NEXT_PUBLIC_NEAR_RPC_URL`, `NEXT_PUBLIC_NEAR_RPC_FALLBACKS` (modul `lib/near/network.ts`).
+> `.env.example` memuat keduanya agar tidak ada nilai yang berbeda antara proses server
+> dan browser. Nilai jaringan selain `testnet`/`mainnet` = gagal saat start.
+
 Template aman (placeholder saja): [.env.example](../../.env.example).
 
 ## Klasifikasi

@@ -133,7 +133,37 @@ Kebijakan lengkap: [docs/development/versioning-and-release.md](./docs/developme
 
 ### Web (frontend Next.js)
 ### Added
-- Scaffold app + halaman placeholder + modul i18n — **belum ada wallet/marketplace UI** (TASK-007/008).
+- Scaffold app + halaman placeholder + modul i18n — **belum ada marketplace UI** (TASK-008).
+- **Connect wallet (TASK-007, 2026-10-08)** — `frontend/features/auth/`: state wallet app-wide
+  (`WalletContext` + `useWallet()`, satu tipe `WalletApi`) di atas `@hot-labs/near-connect` 0.11.4 +
+  `near-connect-hooks` 1.1.6 (`NearProvider`/`useNearWallet`); header app dengan indikator jaringan
+  permanen + kontrol wallet (connect / connecting / connected(alamat+saldo) / disconnecting /
+  error+Retry / disconnect); banner peringatan jaringan + flag gerbang `transactionsDisabled`; mode
+  baca tanpa wallet (halaman tetap ter-prerender statis). Modul pendukung: `lib/near/network.ts`
+  (konfigurasi jaringan dari env — nilai tak dikenal gagal saat start), `lib/near/wallet-connector.ts`
+  (konfigurasi connector; **tanpa daftar wallet hardcoded** — daftar dari manifest resmi near-connect),
+  `lib/near/wallet-errors.ts` (klasifikasi error wallet → kode lokal), `lib/format/money.ts`
+  (`formatNear`/`YoctoNear` — aritmetika BigInt, tanpa float). Copy UI lewat `i18n/en/auth.json`.
+- **Tes komponen (RTL)** — `@testing-library/react` + `@testing-library/dom` (devDependency) +
+  `vitest.setup.ts` (cleanup RTL); suite FE **52 test**.
+### Changed
+- `frontend/tsconfig.json`: `target` **ES2017 → ES2020** (literal `BigInt` wajib untuk aritmetika
+  yoctoNEAR).
+- `frontend/i18n/index.ts`: lookup kunci diperluas ke **kedalaman bebas** (`auth.error.rejected`),
+  sebelumnya hanya dua segmen — konvensi `code-standards.md` §10 memakai tiga segmen.
+- `frontend/package.json`: `@hot-labs/near-connect` dan `near-connect-hooks` di-pin **exact**
+  (`frontend-security.md` §9 — dependensi kritis); `near-api-js` dihapus dari `dependencies`
+  (dipakai sebagai dependency transitif, tidak pernah diimpor langsung).
+- `.env.example` + `docs/deployment/environments.md` + `docs/architecture/frontend-architecture.md` §7:
+  frontend membaca `NEXT_PUBLIC_NEAR_NETWORK`/`NEXT_PUBLIC_NEAR_RPC_URL`/`NEXT_PUBLIC_NEAR_RPC_FALLBACKS`
+  (Next.js hanya mengekspos prefix `NEXT_PUBLIC_`); template memuat keduanya agar tidak ada nilai berbeda
+  antara proses server dan browser.
+### Security
+- Tidak ada private key/seed/kredensial di source maupun bundle FE (diverifikasi: `grep` `.next/static`
+  + `.next/server` bersih). **Temuan terbuka**: `function-call-key-plugin` (dependency transitif
+  `near-connect-hooks`) menyimpan private key function-call di `localStorage`; jalurnya **tidak aktif** di
+  NearSea (tidak pernah `signIn({ addFunctionCallKey })`) dan kodenya ter-tree-shake dari bundle →
+  ditinjau sebagai **TASK-037**.
 
 ### Indexer (fase 2 — Neardata)
 ### Added
