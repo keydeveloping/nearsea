@@ -33,7 +33,7 @@ Milestone: M0 | M1 | M2 | M3 | M4
 | TASK-001 | Scaffold workspace repo (contract/market/factory/frontend) + CI gates + SEC-* P0 | infra | P0 | — | implementation-plan | done | 3 | CI + Security hijau di `dev`; semua manifest & workflow ada | M0 |
 | TASK-002 | Kontrak NFT: NEP-171/177/178/181/297 + mint + events (near-sdk-contract-tools) + **`set_phases` minimal (satu fase publik)** — wajib agar `nft_mint` bisa dipanggil (mint = launchpad-aware, INV-017) | contract | P0 | 001 | features/marketplace + contracts/nft-collection.md | done | 4 | `cargo test` hijau; mint + transfer + events lolos TC-001 | M1 |
 | TASK-003 | Kontrak NFT: royalty NEP-199 (cap 10%) | contract | P0 | 002 | features/marketplace | done | 1 | Payout royalti ≤10% teruji (INV-003/027) | M1 |
-| TASK-004 | Kontrak market: storage NEP-145 + listing 2-tx + dual verification | contract | P0 | 002 | features/marketplace | todo | 4 | List/cancel + storage deposit lolos (INV-020, TC-002) | M1 |
+| TASK-004 | Kontrak market: storage NEP-145 + listing 2-tx + dual verification | contract | P0 | 002 | features/marketplace | done | 4 | List/cancel + storage deposit lolos (INV-020, TC-002) | M1 |
 | TASK-005 | Kontrak market: buy + nft_transfer_payout + resolve/refund (+ private listing & bundle — dgn TASK-010) | contract | P0 | 004 | features/marketplace.md + payments.md | todo | 5 | Buy sukses + refund + race 20 pembeli lolos (INV-001/016, TC-003/016) | M1 |
 | TASK-006 | Sandbox tests 2-kontrak **subset slice**: mint->list->buy->refund + race (TC-001/002/013/016/017/020/022/044/047/048) + INV slice (001..016, 023, 030, 031) | contract | P0 | 002-005 | testing/test-cases.md (Slice M1) | todo | 4 | Suite sandbox hijau; semua INV **slice** punya test (INV M1+ di-defer eksplisit) | M1 |
 | TASK-007 | Frontend: connect wallet (near-connect) | frontend | P0 | 001 | features/auth | todo | 2 | Connect/disconnect + banner network jalan di testnet | M1 |
@@ -107,6 +107,24 @@ Milestone: M0 | M1 | M2 | M3 | M4
 > build wasm 272 KB (ABI memuat `nft_transfer_payout`). **Belum diklaim**: angka gas 15 Tgas dan
 > TC-003 versi sandbox — keduanya butuh suite dua-kontrak milik TASK-006; sisi **market** validasi
 > payout (≥1 penerima, Σ ≤ harga−fee, sisa ≤1 yocto, refund) juga di sana.
+
+> **TASK-004 `done` (ronde 22):** jalur listing market di `market/src/lib.rs` — `list_nft_for_sale`
+> (2-tx, non-custodial) + callback `process_listing` `#[private]` yang **memverifikasi sendiri** lewat
+> dua view XCC (`nft_token` → kepemilikan, `nft_is_approved` → approval), `remove_sale`, `update_price`,
+> view `get_sale`/`get_sales`/`get_supply_sales`, storage NEP-145 (bounds `min = storage_per_sale()`,
+> 500 byte PROPOSED), Pausable (INV-022: `remove_sale` tetap boleh saat paused), dan tiga event
+> (`market_list`/`market_delist`/`market_update_price`) dengan envelope `SingleEvent` yang sama dengan
+> koleksi. **Bukti**: 32 test baru (75 test workspace) — dual verification termasuk jalur token tidak
+> ada/`None`/approval `false`, non-custodial dibuktikan dengan **membaca receipt** (hanya 2 view +
+> callback; tidak ada `nft_transfer*`), harga min inklusif, duplikat listing, storage kurang, storage
+> kembali saat cancel, `approval_id` di luar rentang `u32`, paginasi/clamp. Gate lokal hijau:
+> `fmt --check`, `clippy -D warnings` (0 warning), `test --workspace`, build wasm 197 KB (semua method
+> ada di ABI). **Koreksi dokumen (temuan saat implementasi):** `nft_revoke_token` yang disebut 5 dokumen
+> **tidak ada di NEP-178** (hanya `nft_revoke`/`nft_revoke_all`, keduanya owner-only) — jadi `remove_sale`
+> **tidak** mencabut approval; re-list butuh `nft_revoke` oleh seller lalu `nft_approve` baru. Didokumentasikan
+> di [contracts/market.md](../docs/contracts/market.md) §2a + 5 dokumen lain disinkronkan. **Belum diklaim**:
+> paruh **buy** TC-002, TC-016/017 (race), TC-022, TC-048 (callback palsu), dan angka gas penuh — butuh
+> dua kontrak nyata (TASK-005/006). `fee_bps`/`treasury` di init juga ditunda ke TASK-005 (hanya dipakai settlement).
 
 > **TASK-035 (dibuat ronde 18, TASK-001):** `braces <=3.0.3` (high, ReDoS) masuk lewat
 > `eslint-config-next → @next/eslint-plugin-next → fast-glob → micromatch`. Versi terbaru `braces` = 3.0.3

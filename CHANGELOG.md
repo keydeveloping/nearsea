@@ -66,6 +66,21 @@ Kebijakan lengkap: [docs/development/versioning-and-release.md](./docs/developme
 
 ### Contract (kontrak NFT + market + factory)
 ### Added
+- **Market listing 2-tx + storage NEP-145 (TASK-004, 2026-10-08)** — `market/src/lib.rs` kini punya jalur
+  listing: `list_nft_for_sale` (deposit = storage NEP-145, **bukan** 1 yocto) yang **tidak percaya klaim
+  pemanggil** — kontrak mengirim dua view call ke koleksi (`nft_token` → kepemilikan, `nft_is_approved` →
+  approval) dan callback `#[private]` `process_listing` yang baru menyimpan `Sale` bila keduanya lolos
+  (SEC-ORDER-004, ADR-002). Non-custodial: NFT tetap di wallet seller — jalur listing tidak pernah
+  memanggil `nft_transfer*`. Plus `remove_sale` (1 yocto, owner-only, boleh saat paused — INV-022),
+  `update_price` (in-place, min harga), view `get_sale`/`get_sales` (paginasi + clamp)/`get_supply_sales`,
+  dan event `market_list`/`market_delist`/`market_update_price` (envelope `SingleEvent` sama dengan koleksi).
+  Harga min 0.01 Ⓝ (INV-030, batas inklusif), duplikat listing ditolak (INV-007), storage kurang → revert
+  (INV-020), `approval_id` di luar rentang `u32` ditolak. Ditambah **`nft_on_approve`** (receiver NEP-178)
+  yang wajib ada untuk tx-1 (`nft_approve(market, msg)`) tapi sengaja **tidak** membuat listing (ADR-002),
+  dan pause yang ditegakkan **juga di callback** `process_listing` (receipt terpisah — INV-022).
+  **Belum termasuk**: `buy`/`resolve_purchase` +
+  `pending_purchases`/`recover_stuck_purchase` (TASK-005), `fee_bps`/`treasury` di init (TASK-005),
+  offers/bundle (TASK-009/010), `remove_stale_listing` (TASK-022), kalibrasi gas/storage sandbox (TASK-006).
 - **Royalti NEP-199 (TASK-003, 2026-10-08)** — `nft_transfer_payout` di `contract/src/lib.rs`:
   memindahkan token ke `receiver_id` (otorisasi lewat approval NEP-178, `assert_one_yocto()`,
   `max_len_payout` dihormati) **dan** mengembalikan payout royalti untuk `balance` dalam panggilan
@@ -102,6 +117,19 @@ Kebijakan lengkap: [docs/development/versioning-and-release.md](./docs/developme
   (SEC-CONTRACT-002). Batas window fase `[starts_at, ends_at)` ditetapkan DECIDED. **Belum termasuk**:
   `nft_transfer_payout` NEP-199 (TASK-003), fase bebas penuh + Pausable (TASK-020).
 - Placeholder crate (init + owner/pause) — surface market/factory menyusul di TASK-004/005/012.
+
+### Fixed
+- **Koreksi spesifikasi `nft_revoke_token` (TASK-004, 2026-10-08)** — 5 dokumen menyebut `remove_sale`
+  memanggil `nft_revoke_token` "sebagai approved account". **Method itu tidak ada di NEP-178**: standar
+  hanya punya `nft_revoke`/`nft_revoke_all`, keduanya **owner-only** ("MUST panic if called by someone
+  other than token owner"), tanpa varian untuk approved account. Kontrak market karena itu **tidak**
+  mencabut approval saat cancel listing; aman karena tanpa entry `Sale` market tidak punya jalur
+  memindahkan token, dan transfer oleh owner otomatis mencabut semua approval (FACT NEP-178). Re-list =
+  seller `nft_revoke` dulu, baru `nft_approve` baru. Dirujuk di
+  [contracts/market.md](./docs/contracts/market.md) §2a; `features/marketplace.md`,
+  `security/smart-contract-security-architecture.md`, `security/order-protocol-security.md`,
+  `security/signature-architecture.md`, `02-product-requirements.md`, `00-project-overview.md`, dan
+  TC-044 disinkronkan.
 
 ### Web (frontend Next.js)
 ### Added

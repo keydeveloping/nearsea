@@ -137,7 +137,7 @@ S4 — Deploy/upgrade:
 | S3 step-up | nonce sekali pakai | signature tidak bisa dipakai ulang | instan | SEC-ADMIN-003 |
 | S3 (allowlist berubah) | hapus dari allowlist + revoke sesi | admin kehilangan akses | instan | SEC-ADMIN-001 |
 | S4 (owner key) | rotasi owner (MVP) / proposal ganti council (mainnet) | key lama tak berwenang | MVP: redeploy; mainnet: proposal+timelock | SEC-KEY-001/002 |
-| NEP-178 approval | `nft_revoke_token` / transfer / cancel | approval invalid | on-chain | INV-011 |
+| NEP-178 approval | `nft_revoke` / `nft_revoke_all` (owner-only) / transfer token | approval invalid | on-chain | INV-011 |
 
 ## 10. Pemetaan test signature
 

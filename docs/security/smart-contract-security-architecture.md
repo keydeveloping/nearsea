@@ -52,7 +52,7 @@
 
 - NEP-178 per-token (bukan setApprovalForAll ala EVM — FACT: NEAR tidak punya setApprovalForAll di standar; lebih granular).
 - Market selalu cek `nft_is_approved(token, market, approval_id)` + `nft_token(token).owner_id` sebelum settle (dual verification — ADR-002).
-- Cancel listing → **`nft_revoke_token`** dipanggil market sebagai approved account (CATATAN: `nft_revoke` bersifat owner-only — jika dipanggil market akan gagal; faktanya market memanggil varian revoke_token yang diizinkan NEP-178 untuk approved account) + hapus listing.
+- Cancel listing → market **hanya menghapus entry `Sale`**; **tidak** mencabut approval. NEP-178 hanya punya `nft_revoke`/`nft_revoke_all` dan keduanya owner-only ("MUST panic if called by someone other than token owner") — tidak ada `nft_revoke_token` di standar, dan `near-sdk-contract-tools` 4.0 mengikuti itu. Aman karena tanpa entry `Sale` market tidak punya jalur memindahkan token, dan transfer oleh owner otomatis mencabut semua approval. Re-list = seller `nft_revoke` dulu, baru `nft_approve` baru (derive panic bila akun sudah di-approve). Lihat [contracts/market.md](../contracts/market.md) §2a.
 
 ## 7. Conduit/operator model
 
@@ -81,7 +81,7 @@
 | Method | Auth (predecessor) | Deposit | Checks | Event | Gas (Tgas) |
 |---|---|---|---|---|---|
 | `list_nft_for_sale` | seller = owner token | storage NEP-145 (bukan 1 yocto) | dual verify: `nft_token().owner_id == predecessor` + `nft_is_approved(market, approval_id)`; `price ≥ MIN` (INV-030); token belum di-list (INV-007); token tidak di bundle aktif (INV-028) | `market_list` | ~10–20 PROPOSED |
-| `remove_sale` | `sale.owner_id` | 1 yocto (`assert_one_yocto`) | entry ada; `nft_revoke_token` sebagai approved account | `market_delist` | ~5 PROPOSED |
+| `remove_sale` | `sale.owner_id` | 1 yocto (`assert_one_yocto`) | entry ada; hapus entry `Sale` + kembalikan storage; **tidak** mencabut approval (NEP-178 owner-only — [contracts/market.md](../contracts/market.md) §2a) | `market_delist` | ~5 PROPOSED |
 | `update_price` | `sale.owner_id` | 1 yocto | `new_price ≥ MIN` (INV-030); entry ACTIVE | `market_update_price` | ~5 PROPOSED |
 | `buy` | buyer ≠ seller | `≥ price` | listing ACTIVE & bukan stale (INV-016); private → `allowed_buyer` (INV-026); optimistic removal sale sebelum settle | `market_sale` | < 150 PROPOSED (15+115 FACT) |
 | `make_offer` | buyer ≠ owner token | `= amount` (exact escrow, INV-006) | `amount ≥ MIN` (INV-030); belum ada offer aktif buyer/token (INV-024); token bukan milik pemanggil (INV-023) | `market_offer` | ~5 PROPOSED |
@@ -95,8 +95,8 @@
 | `storage_withdraw` | pemilik saldo storage | 1 yocto | NEP-145; tetap diizinkan saat `paused` (INV-022) | — | ~5 PROPOSED |
 | `withdraw_fees` | owner (MVP) / DAO (mainnet) | 1 yocto | hanya dana fee, **bukan escrow** (INV-005) | ⏳ open-by-design | PROPOSED |
 | `pause` / `unpause` | owner (MVP) / guardian `pause_callers` (mainnet, pause saja) | 1 yocto | — | `market_pause` / `market_unpause` | ~3 PROPOSED |
-| `nft_on_approve` (masuk) | `predecessor` = kontrak NFT sah | 1 yocto | payload NEP-178 valid; **bukan** `#[private]` (INV-013) | — | PROPOSED |
-| `process_listing` / `resolve_purchase` / `nft_resolve_transfer` (callback) | kontrak sendiri (`#[private]`) | — | predecessor = self; state konsisten (INV-013) | — | 115 (resolve) FACT |
+| `nft_on_approve` (masuk) | siapa pun (tidak ada state ditulis) | 1 yocto (dikirim derive koleksi) | bentuk payload valid; **bukan** `#[private]` (INV-013); **tidak** membuat listing (ADR-002) → notifikasi palsu tak berefek | — | minimal |
+| `process_listing` / `resolve_purchase` / `nft_resolve_transfer` (callback) | kontrak sendiri (`#[private]`) | — | predecessor = self; state konsisten (INV-013); `process_listing` menegakkan pause sendiri (receipt terpisah — INV-022) | — | 115 (resolve) FACT |
 
 - **Catatan**: `assert_one_yocto()` hanya untuk mutasi seller/buyer berbasis state (SEC-CONTRACT-001); method yang menerima storage (`list_nft_for_sale`, `create_bundle`) **tidak** memakai 1 yocto.
 - Pause memblokir semua mutasi baru KECUALI `storage_withdraw`, `cancel_offer`/`cancel_bundle`, `remove_sale`/`remove_stale_listing` (jalur refund/aset — INV-022).
