@@ -1,10 +1,38 @@
 # Issue tracker — di mana pekerjaan dilacak di repo ini
 
 > Dibaca oleh `/to-tickets`, `/triage`, `/to-spec`, `/wayfinder`.
-> Dibuat ronde 17c.
+> Dibuat ronde 17c; diperbarui ronde 28 (remote GitHub + aturan anti-divergensi status).
 
-Repo ini memakai **tracker markdown lokal**. Tidak ada GitHub/GitLab remote saat ini
-(repo belum di-`git init`), jadi `gh`/`glab` **tidak dipakai**.
+Repo ini memakai **tracker markdown lokal** sebagai SSOT (`tasks/` + `.scratch/`). Repo **sudah**
+punya remote GitHub ([`github.com/keydeveloping/nearsea`](https://github.com/keydeveloping/nearsea)),
+jadi `gh` **dipakai** untuk PR & CI. Tapi **tiket tetap markdown di repo** — tidak ada GitHub Issues,
+dan tidak ada link blocking native; `Blocked by:` tetap baris teks yang dibaca manusia/agent.
+
+## Otoritas status: branch `dev`
+
+> **Pelajaran ronde 28 — `.scratch/` di-track git, jadi status tiket bisa BERBEDA antar branch.**
+
+`.scratch/m1-slice/issues/*.md` ikut ter-commit. Kalau tiket di-update `done` di branch fitur yang
+**belum di-merge**, maka:
+
+- orang yang membaca tiket dari `dev` melihat status **lama** (`ready-for-agent`), dan
+- orang yang membaca dari branch fitur melihat status **baru** (`done`) —
+
+dua jawaban berbeda untuk fakta yang sama. Ini persis pelanggaran SSOT yang dilarang
+[AGENTS.md](../../AGENTS.md). Ronde 28 menemukan tiket 05–08 `done` di branch kontrak tapi
+`ready-for-agent` di `dev` **dan** di branch FE.
+
+**Aturan:**
+
+1. **`dev` adalah otoritas status tiket.** Sebuah tiket dianggap `done` hanya kalau perubahan
+   statusnya sudah ada di `dev` — bukan di branch fitur.
+2. **Update status tiket = bagian dari PR yang mendaratkan kerjanya.** Jangan menandai `done`
+   di branch lalu meninggalkannya belum di-merge berhari-hari; merge-kan atau jangan tandai.
+3. **Jangan mengedit file tiket dari dua rantai branch sekaligus.** Kalau dua branch menyentuh
+   file tiket yang sama, merge berikutnya akan menabrakkan status — rekonsiliasi **setelah**
+   semua rantai mendarat, di satu PR khusus.
+4. **AC "berjalan di CI dan hijau" wajib menyertakan URL run CI.** Branch yang belum pernah
+   di-push belum pernah diuji CI; menandai AC itu `[x]` tanpa run URL = asersi, bukan bukti.
 
 ## Dua permukaan, satu SSOT
 
