@@ -5,10 +5,10 @@ import Link from "next/link";
 import { t } from "@/i18n";
 import { MARKET_CONTRACT_ID } from "@/lib/near/contracts";
 
-import { useTokenDetail } from "./hooks/useTokenDetail";
 import { PriceChip } from "./components/PriceChip";
 import { TokenActions } from "./components/TokenActions";
 import { TokenMedia } from "./components/TokenMedia";
+import { useTokenDetail } from "./hooks/useTokenDetail";
 
 /**
  * Halaman detail token: metadata, harga, dan status listing.

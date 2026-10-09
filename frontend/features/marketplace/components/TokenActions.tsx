@@ -5,10 +5,12 @@ import { useState } from "react";
 import { t } from "@/i18n";
 
 import { useMarketChain } from "../hooks/useMarketChain";
-import type { NftToken, Sale } from "../types/marketplace.types";
+
 import { BuyModal } from "./BuyModal";
 import { ListModal } from "./ListModal";
 import { PriceChip } from "./PriceChip";
+
+import type { NftToken, Sale } from "../types/marketplace.types";
 
 /**
  * Aksi yang tersedia untuk satu token, ditentukan oleh hubungan pemanggil dengan token itu:

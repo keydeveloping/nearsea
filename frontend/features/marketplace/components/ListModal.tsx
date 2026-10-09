@@ -10,8 +10,10 @@ import { MARKET_CONTRACT_ID } from "@/lib/near/contracts";
 import { useListNft } from "../hooks/useListNft";
 import { useMarketChain } from "../hooks/useMarketChain";
 import { useStorageRequirement } from "../hooks/useStorageRequirement";
-import type { NftToken } from "../types/marketplace.types";
+
 import { TxFeedback } from "./TxFeedback";
+
+import type { NftToken } from "../types/marketplace.types";
 
 /** Harga minimum listing = 0.01 Ⓝ (konstanta kontrak `MIN_PRICE_YOCTO`). */
 const MIN_PRICE_YOCTO = asYoctoNear("10000000000000000000000");

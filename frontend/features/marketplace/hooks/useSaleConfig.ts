@@ -6,6 +6,7 @@ import { MARKET_CONTRACT_ID } from "@/lib/near/contracts";
 
 import { fetchFeeBps, fetchRoyaltyConfig } from "../api/market-api";
 import { marketKeys } from "../api/query-keys";
+
 import { useMarketChain } from "./useMarketChain";
 
 /**

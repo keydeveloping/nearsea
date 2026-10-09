@@ -9,9 +9,11 @@ import { MARKET_CONTRACT_ID } from "@/lib/near/contracts";
 
 import { invalidateMarketQueries } from "../api/query-keys";
 import { verifySaleForPurchase } from "../api/verify-sale";
-import type { Sale } from "../types/marketplace.types";
+
 import { useMarketChain } from "./useMarketChain";
 import { useMountedRef } from "./useMountedRef";
+
+import type { Sale } from "../types/marketplace.types";
 
 export type BuyStatus = "idle" | "verifying" | "signing" | "success" | "error";
 

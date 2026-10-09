@@ -1,15 +1,16 @@
 // TC-040 · AC-WALLET-1, AC-WALLET-2, AC-WALLET-4
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import Home from "@/app/page";
 import { t } from "@/i18n";
 
-import { AppHeader } from "./AppHeader";
-import { WalletProvider } from "./WalletProvider";
 import { useWallet } from "../hooks/useWallet";
 import { nearDouble } from "../near-connect.double";
+
+import { AppHeader } from "./AppHeader";
+import { WalletProvider } from "./WalletProvider";
 
 vi.mock("near-connect-hooks", async () => {
   const double = await import("../near-connect.double");

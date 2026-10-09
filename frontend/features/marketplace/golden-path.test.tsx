@@ -2,9 +2,9 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { TokenPage } from "./TokenPage";
 import { ListingGrid } from "./components/ListingGrid";
 import { buildFakeChain, renderWithMarket } from "./test-utils";
+import { TokenPage } from "./TokenPage";
 
 const MARKET = "market.testnet";
 const NFT = "nft.testnet";

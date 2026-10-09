@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 
-import type { Sale } from "../types/marketplace.types";
 import { PriceChip } from "./PriceChip";
+
+import type { Sale } from "../types/marketplace.types";
 
 /**
  * Satu kartu listing di grid. Klik = menuju halaman token (route `/token/[contract]/[tokenId]`).

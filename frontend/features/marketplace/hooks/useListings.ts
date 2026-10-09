@@ -7,8 +7,10 @@ import { MARKET_CONTRACT_ID } from "@/lib/near/contracts";
 import { loadVisibleListings } from "../api/discovery";
 import { marketKeys } from "../api/query-keys";
 import { compareNewestFirst } from "../api/sale-validity";
-import type { Sale } from "../types/marketplace.types";
+
 import { useMarketChain } from "./useMarketChain";
+
+import type { Sale } from "../types/marketplace.types";
 
 /**
  * Umpan listing untuk grid discovery: hanya listing publik yang sudah **dibuktikan** masih

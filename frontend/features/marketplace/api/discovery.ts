@@ -9,9 +9,10 @@
  * seluruh marketplace.
  */
 
-import type { MarketChain, Sale } from "../types/marketplace.types";
 import { fetchSales, fetchToken } from "./market-api";
 import { isPublicListing, isSaleStale } from "./sale-validity";
+
+import type { MarketChain, Sale } from "../types/marketplace.types";
 
 export async function loadVisibleListings(
   chain: MarketChain,

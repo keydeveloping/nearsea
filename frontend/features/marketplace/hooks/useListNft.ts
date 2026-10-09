@@ -10,13 +10,15 @@ import {
   configFailure,
   type TxFailure,
 } from "@/lib/errors/market-errors";
-import type { YoctoNear } from "@/lib/format/money";
 import { MARKET_CONTRACT_ID } from "@/lib/near/contracts";
 
 import { fetchToken } from "../api/market-api";
 import { invalidateMarketQueries } from "../api/query-keys";
+
 import { useMarketChain } from "./useMarketChain";
 import { useMountedRef } from "./useMountedRef";
+
+import type { YoctoNear } from "@/lib/format/money";
 
 /**
  * Langkah signing listing. `approving`/`listing` = **langkah 1/2 dan 2/2** yang ditampilkan

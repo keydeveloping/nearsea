@@ -7,8 +7,10 @@ import { MARKET_CONTRACT_ID } from "@/lib/near/contracts";
 import { fetchSale, fetchToken } from "../api/market-api";
 import { marketKeys } from "../api/query-keys";
 import { isSaleStale } from "../api/sale-validity";
-import type { NftToken, Sale } from "../types/marketplace.types";
+
 import { useMarketChain } from "./useMarketChain";
+
+import type { NftToken, Sale } from "../types/marketplace.types";
 
 export interface TokenDetail {
   token: NftToken | null;

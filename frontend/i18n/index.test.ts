@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vitest";
 
 import { format, t } from "@/i18n";
+
 import type { MessageKey } from "@/i18n";
 
 describe("i18n", () => {

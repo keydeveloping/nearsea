@@ -2,13 +2,15 @@
 
 import { useQuery } from "@tanstack/react-query";
 
-import type { YoctoNear } from "@/lib/format/money";
 import { storageShortfall } from "@/lib/format/storage";
 import { MARKET_CONTRACT_ID } from "@/lib/near/contracts";
 
 import { fetchStorageAvailable, fetchStorageBounds } from "../api/market-api";
 import { marketKeys } from "../api/query-keys";
+
 import { useMarketChain } from "./useMarketChain";
+
+import type { YoctoNear } from "@/lib/format/money";
 
 /**
  * Deposit storage yang harus dilampirkan ke `list_nft_for_sale` (NEP-145): selisih antara

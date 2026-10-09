@@ -2,10 +2,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, type RenderResult } from "@testing-library/react";
 import { vi } from "vitest";
-import type { ReactElement, ReactNode } from "react";
 
 import { MarketChainContext } from "./hooks/useMarketChain";
+
 import type { MarketChain } from "./types/marketplace.types";
+import type { ReactElement, ReactNode } from "react";
 
 export interface RecordedView {
   contractId: string;

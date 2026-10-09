@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { asYoctoNear } from "@/lib/format/money";
 
 import { compareNewestFirst, isPublicListing, isSaleStale } from "./sale-validity";
+
 import type { NftToken, Sale } from "../types/marketplace.types";
 
 const MARKET = "market.testnet";

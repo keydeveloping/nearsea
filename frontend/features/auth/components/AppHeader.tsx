@@ -3,6 +3,7 @@
 import { t } from "@/i18n";
 
 import { useWallet } from "../hooks/useWallet";
+
 import { NetworkBanner } from "./NetworkBanner";
 import { WalletButton } from "./WalletButton";
 

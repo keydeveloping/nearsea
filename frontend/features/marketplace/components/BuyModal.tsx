@@ -3,13 +3,15 @@
 import { Modal } from "@/components/ui/Modal";
 import { format, t } from "@/i18n";
 import { computeSaleBreakdown, percentFromBps } from "@/lib/format/fees";
-import type { YoctoNear } from "@/lib/format/money";
 
 import { useBuyNft } from "../hooks/useBuyNft";
 import { useSaleConfig } from "../hooks/useSaleConfig";
-import type { Sale } from "../types/marketplace.types";
+
 import { PriceChip } from "./PriceChip";
 import { TxFeedback } from "./TxFeedback";
+
+import type { Sale } from "../types/marketplace.types";
+import type { YoctoNear } from "@/lib/format/money";
 
 function BreakdownRow({ label, amountYocto }: { label: string; amountYocto: YoctoNear }) {
   return (

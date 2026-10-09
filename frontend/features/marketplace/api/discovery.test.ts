@@ -3,9 +3,11 @@ import { describe, expect, it } from "vitest";
 
 import { asYoctoNear } from "@/lib/format/money";
 
-import { loadVisibleListings } from "./discovery";
-import type { Sale } from "../types/marketplace.types";
 import { buildFakeChain } from "../test-utils";
+
+import { loadVisibleListings } from "./discovery";
+
+import type { Sale } from "../types/marketplace.types";
 
 const MARKET = "market.testnet";
 

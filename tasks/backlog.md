@@ -67,7 +67,7 @@ Milestone: M0 | M1 | M2 | M3 | M4
 | TASK-034 | Prep scaling: app stateless + pooling + rencana read replica/LB (aktif saat trafik naik) | infra | P1 (fase 2) | 028 | architecture/scaling | todo | 3 | App stateless terverifikasi + rencana replica/LB tertulis | M2 |
 | TASK-035 | Audit dependensi: tinjau ulang advisory tanpa patch yang di-*ignore* (`--ignore-unfixable`) | infra | P2 | 001 | development/ci-cd.md §3 | todo | 0.5 | Advisory yang di-ignore punya keputusan tercatat: diperbaiki, diganti, atau diterima + alasan | M1+ |
 | TASK-037 | Tinjau `function-call-key-plugin` (dependency transitif `near-connect-hooks`): menyimpan private key function-call di `localStorage` | security | P0 | 007 | security/key-management.md + features/auth.md | todo | 1 | Keputusan tercatat: jalur dinonaktifkan permanen (tanpa `addFunctionCallKey`), atau dependency diganti, atau diterima + alasan tertulis. **Kode plugin terbukti ADA di bundle klien (ronde 26) — bukan alasan tree-shaking** | M1+ |
-| TASK-038 | Aktifkan lint yang tertunda setelah struktur `features/` ada: `import/order`, `no-restricted-imports` (larangan impor lintas-fitur), `react/jsx-no-useless-fragment` | frontend | P2 | 007 | development/code-standards.md §9 | todo | 0.5 | Ketiga aturan aktif di `eslint.config.mjs` dan gate FE tetap hijau | M1+ |
+| TASK-038 | Aktifkan lint yang tertunda setelah struktur `features/` ada: `import/order`, `no-restricted-imports` (larangan impor lintas-fitur), `react/jsx-no-useless-fragment` | frontend | P2 | 007 | development/code-standards.md §9 | done | 0.5 | Ketiga aturan aktif di `eslint.config.mjs` dan gate FE tetap hijau | M1+ |
 
 > **TASK-031 `done` (ronde 18c):** repo dijadikan **publik** oleh user → branch protection tersedia (sebelumnya 403 "butuh GitHub Pro" saat private). Proteksi **aktif** di `dev`/`testnet`/`mainnet`: PR wajib, force-push & delete diblokir **termasuk admin** (`enforce_admins`), 5 required status checks, conversation resolution; `strict` (branch up-to-date) di testnet/mainnet. Tag protection via ruleset `protect-release-tags` (`contract-v*`/`web-v*`/`indexer-v*`: delete + update diblokir). **Bukti**: push langsung ke `dev` ditolak GitHub — `GH006 Protected branch update failed … Changes must be made through a pull request. 5 of 5 required status checks are expected.`
 > **Required approval = 0 (ditunda, keputusan user ronde 18c):** repo hanya punya satu akun dan GitHub melarang self-approve, jadi approval 2/1 akan mengunci semua PR. Naikkan ke `testnet`=1 / `mainnet`=2 saat ada maintainer kedua ([git-workflow.md](../docs/development/git-workflow.md) §16). `require_code_owner_reviews` juga ditunda karena alasan yang sama.
@@ -137,6 +137,30 @@ Milestone: M0 | M1 | M2 | M3 | M4
 > Blocker-nya bukan kode: kontrak harus ter-deploy di testnet, dan deploy testnet **wajib persetujuan user**
 > (`git-workflow.md` §3). Test jalur emas saat ini berjalan di Vitest+RTL dengan chain palsu — jalur
 > komponen/hook yang sama, tanpa browser dan tanpa wallet nyata.
+
+> **TASK-038 `done` (ronde 27):** tiga aturan lint yang tertunda aktif di `frontend/eslint.config.mjs`
+> **tanpa dependency baru** — dugaan lama bahwa plugin-nya perlu dipasang manual tidak benar:
+> `eslint-config-next` 16.4.0 sudah membawa `eslint-plugin-import` 2.32.0 + `eslint-plugin-react` 7.37,
+> jadi namespace `import`/`react` sudah terdaftar. Yang dipasang: `import/order` (grup §5 — `type` di
+> akhir, satu baris kosong antar grup, alfabetis; butuh `settings["import/internal-regex"] = "^@/"`
+> supaya alias repo tidak terbaca sebagai paket eksternal), `react/jsx-no-useless-fragment`, dan
+> `no-restricted-imports` lewat override per-`files` untuk menegakkan tabel batas dependensi
+> [frontend-architecture.md](../docs/architecture/frontend-architecture.md) §1 (`features/**` → dilarang
+> `@/features/*`; `lib/**` → dilarang `@/features/*` + `@/app/*` + `@/components/ui/*`; `components/ui/**`
+> → dilarang `@/features/*` + `@/app/*` + `@/stores/*` + `@/lib/*` kecuali `@/lib/format`). Satu blok
+> tunggal tidak bisa dipakai karena `app/` justru boleh mengimpor semuanya.
+> **Bukti**: aktivasi memunculkan **64 pelanggaran `import/order`** (semua auto-fixable; murni urutan
+> import, tidak ada perubahan perilaku) dan **nol** pelanggaran `no-restricted-imports` /
+> `jsx-no-useless-fragment` — batas lapisan dan fragment memang sudah bersih. Ketiga aturan
+> **diverifikasi benar-benar menembak** dengan menanam pelanggaran sengaja (impor `@/features/*` dari
+> `features/`, `lib/`, `components/ui/`; `lib/`→`@/components/ui/*`; `components/ui/`→`@/app/*`,
+> `@/stores/*`, `@/lib/near/*`; fragmen satu anak) lalu menghapusnya kembali — sekaligus dipastikan
+> impor yang **boleh** (`lib/`→`@/lib/format`, `components/ui/`→`@/lib/format`, `features/`→
+> `components/ui/`+`lib/format`) tetap lolos. Gate FE hijau:
+> `lint`, `format:check`, `typecheck`, `test` (**127 test**), `build`. Dokumen disinkronkan:
+> [code-standards.md](../docs/development/code-standards.md) §5 + §9.
+> **Catatan**: `@/*` diklasifikasikan `import/order` sebagai **internal**, jadi urutan file yang sudah
+> ada (`components/ui` → `i18n` → `lib`) sesuai §5 dan tidak perlu diubah.
 
 > Penomoran ID final (ronde 1–13 + audit). Perubahan scope → update lewat prosedur DOCUMENTATION-MAP.
 > Kolom Status/Estimate/Done-when/Milestone ditambahkan ronde 15; status awal semua `todo`.

@@ -4,6 +4,7 @@ import { t } from "@/i18n";
 import { MARKET_CONTRACT_ID } from "@/lib/near/contracts";
 
 import { useListings } from "../hooks/useListings";
+
 import { ListingCard } from "./ListingCard";
 
 /**

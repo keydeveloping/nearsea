@@ -9,9 +9,10 @@
 
 import { KnownTxError, priceChangedFailure, staleFailure } from "@/lib/errors/market-errors";
 
-import type { MarketChain, Sale } from "../types/marketplace.types";
 import { fetchSale, fetchToken } from "./market-api";
 import { isSaleStale } from "./sale-validity";
+
+import type { MarketChain, Sale } from "../types/marketplace.types";
 
 export async function verifySaleForPurchase(
   chain: MarketChain,

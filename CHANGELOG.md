@@ -119,6 +119,13 @@ Kebijakan lengkap: [docs/development/versioning-and-release.md](./docs/developme
   frontend membaca `NEXT_PUBLIC_NEAR_NETWORK`/`NEXT_PUBLIC_NEAR_RPC_URL`/`NEXT_PUBLIC_NEAR_RPC_FALLBACKS`
   (Next.js hanya mengekspos prefix `NEXT_PUBLIC_`) dan `NEXT_PUBLIC_MARKET_CONTRACT_ID`; template memuat
   keduanya agar tidak ada nilai berbeda antara proses server dan browser.
+- **Lint FE diperketat (TASK-038, 2026-10-09)** — `frontend/eslint.config.mjs` kini juga mengaktifkan
+  `import/order` (grup `code-standards.md` §5: `type` di akhir, satu baris kosong antar grup, alfabetis;
+  plus `settings["import/internal-regex"] = "^@/"` supaya alias repo tidak terbaca sebagai paket
+  eksternal), `react/jsx-no-useless-fragment`, dan `no-restricted-imports` per-`files` yang menegakkan
+  tabel batas dependensi `frontend-architecture.md` §1. **Tanpa dependency baru** — `eslint-config-next`
+  sudah membawa `eslint-plugin-import` + `eslint-plugin-react`; dugaan lama "butuh plugin tambahan" tidak
+  benar. Konsekuensinya 30 file dirapikan **urutan import-nya saja** (auto-fix, tanpa perubahan perilaku).
 ### Security
 - Tidak ada private key/seed/kredensial di source maupun bundle FE (diverifikasi: `grep` `.next/static`
   + `.next/server` bersih). **Koreksi (ronde 26)**: klaim bahwa kode `function-call-key-plugin`

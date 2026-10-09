@@ -1,9 +1,10 @@
 "use client";
 
 import { t, type MessageKey } from "@/i18n";
-import type { TxFailure } from "@/lib/errors/market-errors";
 
 import { failureKey } from "../error-messages";
+
+import type { TxFailure } from "@/lib/errors/market-errors";
 
 /**
  * Umpan balik transaksi: sukses dan gagal **sama-sama terbaca**, tidak ada yang diam

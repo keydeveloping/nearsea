@@ -13,7 +13,6 @@ import {
 } from "react";
 
 import { buildConnectorConfig } from "@/lib/near/wallet-connector";
-import type { WalletConnectErrorCode } from "@/lib/near/wallet-errors";
 
 import { useAccountProbe } from "../hooks/useAccountProbe";
 import { useWalletActions, type WalletAction } from "../hooks/useWalletActions";
@@ -25,6 +24,7 @@ import type {
   WalletApi,
   WalletStatus,
 } from "../types/wallet.types";
+import type { WalletConnectErrorCode } from "@/lib/near/wallet-errors";
 
 /** State pra-hidrasi: belum ada wallet, belum ada yang bisa diklik. */
 export const IDLE_WALLET_API: WalletApi = buildWalletApi({
