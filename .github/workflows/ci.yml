@@ -74,13 +74,41 @@ jobs:
           install -m 0755 cargo-near-x86_64-unknown-linux-gnu/cargo-near "$HOME/.cargo/bin/cargo-near"
           cargo near --version
 
-      # `--no-abi`: ABI + build reproducible diaktifkan saat rilis kontrak
-      # pertama (TASK-032, ci-cd.md §14). Gate ini hanya membuktikan wasm ter-build.
-      - name: Build wasm
+      # Build wasm + ABI diaktifkan (TASK-032, ci-cd.md §14). Gate ini membuktikan
+      # wasm ter-build dan ABI-nya sah; build REPRODUCIBLE (NEP-330, image Docker
+      # ter-pin) berjalan di release.yml saat tag rilis dibuat.
+      - name: Build wasm + ABI
         run: |
           for crate in contract market factory; do
-            cargo near build non-reproducible-wasm --no-abi --manifest-path "$crate/Cargo.toml"
+            cargo near build non-reproducible-wasm --manifest-path "$crate/Cargo.toml"
           done
+
+      # Versi artefak harus tertanam di wasm dan bisa dibaca dari luar (NEP-330,
+      # SEC-CONTRACT-006). Diperiksa tiap PR agar metadata tidak pernah basi.
+      - name: Verify embedded NEP-330 metadata (version + link)
+        run: |
+          set -euo pipefail
+          failed=0
+          for crate in contract market factory; do
+            pkg=$(awk -F'"' '/^\[package\]/{p=1} p && /^name[[:space:]]*=/{print $2; exit}' "$crate/Cargo.toml")
+            expected=$(awk -F'"' '/^\[package\]/{p=1} p && /^version[[:space:]]*=/{print $2; exit}' "$crate/Cargo.toml")
+            wasm="target/near/${pkg//-/_}/${pkg//-/_}.wasm"
+
+            if [ ! -f "$wasm" ]; then
+              echo "FAIL $wasm tidak ada"; failed=1; continue
+            fi
+            meta=$(grep -a -o -E '\{"version":"[^"]+","link":(null|"[^"]+"),' "$wasm" | head -n1 || true)
+            if [ -z "$meta" ]; then
+              echo "FAIL $crate: contract_source_metadata tidak tertanam"; failed=1; continue
+            fi
+            got=$(printf '%s' "$meta" | sed -E 's/^\{"version":"([^"]+)".*/\1/')
+            link=$(printf '%s' "$meta" | sed -E 's/^.*"link":([^,]+),$/\1/')
+            echo "$crate: version=$got link=$link"
+            [ "$got" = "$expected" ] || { echo "FAIL $crate: versi '$got' != manifest '$expected'"; failed=1; }
+            [ "$link" != "null" ] || { echo "FAIL $crate: link NEP-330 kosong (package.repository)"; failed=1; }
+          done
+          [ "$failed" -eq 0 ] || exit 1
+          echo "Metadata NEP-330 ketiga crate terverifikasi."
 
       - name: Record wasm code hash (sha256)
         run: |

@@ -32,6 +32,11 @@ Selama pra-1.0 (`0.y.z`), MINOR boleh memuat breaking change — tetap dicatat d
   versi + sumber + hash build (SEC-CONTRACT-006).
 - Alur verifikasi: hash artifact CI → bandingkan dengan metadata on-chain
   (`near view <contract> contract_source_metadata`) → cocok = build terbukti reproducible.
+- **Dari mana nilainya datang:** `version` di `[package]` → field `version` NEP-330;
+  `repository` di `[package]` → field `link`. Keduanya bisa dibaca **dari luar wasm** (string
+  JSON tertanam), jadi versi artefak terbukti tanpa menjalankan kontrak — diverifikasi tiap PR
+  oleh [ci.yml](../../.github/workflows/ci.yml) dan saat rilis oleh
+  [release.yml](../../.github/workflows/release.yml).
 - Deploy tanpa verifikasi hash = **tidak sah** (lihat [ci-cd.md](./ci-cd.md) §5).
 
 ## 3. Versi storage layout (SEC-CONTRACT-008)
@@ -242,11 +247,27 @@ git for-each-ref --sort=-creatordate --format='%(refname:short) %(objectname:sho
 ```
 
 - Versi di manifest wajib **sama** dengan tag: `frontend/package.json` `"version"` ↔ `web-vX.Y.Z`; `indexer/package.json` ↔ `indexer-vX.Y.Z`; `contract/Cargo.toml` ↔ `contract-vX.Y.Z`.
-- CI (PROPOSED) memeriksa kesesuaian ini saat tag di-push; tag tanpa versi manifest yang cocok → gagalkan rilis.
+- CI **memeriksa kesesuaian ini saat tag di-push** — job `Release — version ↔ tag consistency`
+  di [release.yml](../../.github/workflows/release.yml); tag tanpa versi manifest yang cocok →
+  rilis digagalkan (sebelum artifact dibangun).
 
 ## 15. Status
 
-- Skema SemVer per-artefak — **DECIDED (ronde 14)**.
+- Skema SemVer per-artefak — **DECIDED (ronde 14)**; versi artefak **tertanam di build** dan
+  dibaca lewat NEP-330 (kontrak) — implementasi TASK-032.
 - Format CHANGELOG, matriks bump, pre-release, provenance check, penomoran migration — **DECIDED (ronde 15)**.
-- Pemeriksaan otomatis versi↔tag di CI — **PROPOSED** (TASK-032).
-- Tag & CHANGELOG diisi mulai rilis pertama (Fase 1 scaffold).
+- Pemeriksaan otomatis versi↔tag di CI — **AKTIF (TASK-032)**:
+  [release.yml](../../.github/workflows/release.yml) memeriksa versi manifest == tag, membangun
+  wasm reproducible, dan membuktikan metadata NEP-330 yang tertanam == tag. Bisa diuji-kering
+  lewat `workflow_dispatch` (tanpa membuat tag/Release).
+- **Lingkungan build reproducible** — image Docker di-pin **by digest**
+  (`sourcescan/cargo-near:0.21.1-rust-1.96.0`, digest `sha256:ccb22bb4…ee17`) di
+  `[package.metadata.near.reproducible_build]` ketiga crate. Konsekuensi yang disengaja:
+  **toolchain build rilis = isi image**, bukan `rust-toolchain.toml` repo — perubahan
+  `rust-toolchain.toml` karena itu **tidak** mengubah hash rilis; perubahan hash rilis hanya
+  datang dari image digest, source, atau `Cargo.lock`.
+- Tag & CHANGELOG diisi mulai rilis pertama (Fase 1 scaffold). Rilis pertama yang disiapkan:
+  **`contract-v0.1.0`**; heading versi + tanggal dibuat saat tag di-push (§5 langkah 7) — lihat
+  [CHANGELOG.md](../../CHANGELOG.md) §Rilis pertama (prosedur + rollback).
+- **Belum terverifikasi lokal:** langkah ABI + reproducible butuh Docker/Linux (di Windows lokal
+  langkah ABI gagal linking — [ci-cd.md](./ci-cd.md) §14). Verifikasinya milik CI.

@@ -62,7 +62,7 @@ Milestone: M0 | M1 | M2 | M3 | M4
 | TASK-029 | Infra: CI/CD deploy (GitHub Actions → SSH) + domain + SSL Caddy | infra | P0 (M1) | 028 | cicd-security | todo | 3 | Deploy dev/testnet otomatis + mainnet manual ter-gate | M1+ |
 | TASK-030 | Infra: backup pg_dump harian → object storage + restore drill (SEC-DB-004) + alert Telegram + monitoring | infra | P0 (M1) | 028 | disaster-recovery, monitoring | todo | 2 | Backup harian + restore drill lulus + alert 5xx sampai | M1+ |
 | TASK-031 | Git & repo hygiene: 3 branch (`dev`/`testnet`/`mainnet`) + proteksi branch + `.gitignore` ketat + secret scanning (SEC-CICD-002/003) | infra | P0 | 001 | development/git-workflow, development/secrets-and-gitignore | done | 1 | Proteksi 3 branch + gitleaks hijau + CODEOWNERS aktif | M0 |
-| TASK-032 | Versioning & rilis: SemVer per-artefak + tag + CHANGELOG + versi kontrak NEP-330 (SEC-CONTRACT-006) | infra/docs | P0 (M1) | 001 | development/versioning-and-release | todo | 1 | Tag pertama + CHANGELOG terisi + versi NEP-330 terverifikasi | M0 |
+| TASK-032 | Versioning & rilis: SemVer per-artefak + tag + CHANGELOG + versi kontrak NEP-330 (SEC-CONTRACT-006) | infra/docs | P0 (M1) | 001 | development/versioning-and-release | done | 1 | Tag pertama + CHANGELOG terisi + versi NEP-330 terverifikasi | M0 |
 | TASK-033 | Error & notifikasi terpusat: registry kode error + pemetaan panic kontrak + kebijakan notifikasi (FE + API) | frontend/backend | P1 | 008 | development/error-handling | todo | 2 | Modul error terpusat dipakai; tidak ada pesan ad-hoc | M1+ |
 | TASK-034 | Prep scaling: app stateless + pooling + rencana read replica/LB (aktif saat trafik naik) | infra | P1 (fase 2) | 028 | architecture/scaling | todo | 3 | App stateless terverifikasi + rencana replica/LB tertulis | M2 |
 | TASK-035 | Audit dependensi: tinjau ulang advisory tanpa patch yang di-*ignore* (`--ignore-unfixable`) | infra | P2 | 001 | development/ci-cd.md §3 | todo | 0.5 | Advisory yang di-ignore punya keputusan tercatat: diperbaiki, diganti, atau diterima + alasan | M1+ |
@@ -80,6 +80,21 @@ Milestone: M0 | M1 | M2 | M3 | M4
 > `launchpad_mint`); versi **sandbox** (`near-workspaces`) milik TASK-006 (slice ticket `08`), bukan tiket ini.
 > **Belum termasuk** (sengaja): `nft_transfer_payout` NEP-199 → TASK-003; fase bebas penuh + allowlist
 > penuh + Pausable → TASK-020. **Belum di-deploy** ke testnet (butuh persetujuan user, `git-workflow.md` §3).
+
+> **TASK-032 `done` (ronde 20):** skema versi per-artefak ditegakkan mesin, bukan sekadar dokumen.
+> **Yang dibangun**: `[package.metadata.near.reproducible_build]` di ketiga crate (image Docker
+> `sourcescan/cargo-near:0.21.1-rust-1.96.0` **ter-pin by digest**) + `repository` di `[package]`;
+> workflow baru `.github/workflows/release.yml` (dipicu tag `contract-v*`/`web-v*`/`indexer-v*`, bisa
+> diuji-kering lewat `workflow_dispatch`) yang memeriksa **versi manifest == tag**, membangun wasm
+> reproducible di container, **membuktikan metadata NEP-330 tertanam == tag**, lalu melampirkan
+> artifact + `code-hash.txt` ke GitHub Release; `ci.yml` kini membangun **ABI** (bukan `--no-abi`) dan
+> memverifikasi metadata NEP-330 tiap PR. **Bukti lokal**: `cargo fmt --check` + `clippy -D warnings`
+> (0 warning) + `cargo test --workspace` (34 test) hijau; metadata NEP-330 ketiga crate dibaca langsung
+> dari wasm (`version=0.1.0`, `link=https://github.com/keydeveloping/nearsea`) — sebelumnya `link` = `null`.
+> **Belum tertutup di tiket ini (sengaja, butuh aksi user):** tag pertama **belum dibuat** — tag hanya
+> sah di `testnet`/`mainnet` setelah PR promosi, dan merge ke sana **wajib tanya user** (`git-workflow.md`
+> §3/§12). Verifikasi reproducible + ABI juga butuh Docker/Linux → dijalankan CI, bukan lokal Windows
+> (`ci-cd.md` §14). Rilis pertama yang disiapkan: `contract-v0.1.0` (prosedur + rollback di `CHANGELOG.md`).
 
 > **TASK-035 (dibuat ronde 18, TASK-001):** `braces <=3.0.3` (high, ReDoS) masuk lewat
 > `eslint-config-next → @next/eslint-plugin-next → fast-glob → micromatch`. Versi terbaru `braces` = 3.0.3

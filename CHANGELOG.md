@@ -10,6 +10,13 @@ Kebijakan lengkap: [docs/development/versioning-and-release.md](./docs/developme
 > Status: **pra-rilis** — belum ada artefak ter-deploy. Entri pertama (scaffold TASK-001)
 > ada di bawah; **belum ada versi rilis** (`contract-v*`/`web-v*`) karena belum ada artefak
 > yang di-deploy atau di-tag.
+>
+> **Rilis pertama yang disiapkan (TASK-032): `contract-v0.1.0`.** Isi rilis = seluruh entri
+> `### Contract` di bawah. Sesuai [versioning-and-release.md](./docs/development/versioning-and-release.md) §5,
+> heading versi + tanggal dibuat **saat tag di-push** (langkah 7), bukan sekarang — sehingga
+> tidak ada heading versi yang menjanjikan rilis yang belum terjadi. Tag dibuat di `mainnet`
+> setelah PR promosi `dev → testnet → mainnet` (wajib persetujuan user — [git-workflow.md](./docs/development/git-workflow.md) §3/§12).
+> Prosedur rilis & rollback: §Rilis pertama di bawah.
 
 ---
 
@@ -59,6 +66,19 @@ Kebijakan lengkap: [docs/development/versioning-and-release.md](./docs/developme
 
 ### Contract (kontrak NFT + market + factory)
 ### Added
+- **Versioning & rilis (TASK-032, 2026-10-07)** — versi artefak kini **tertanam di build dan
+  bisa dibaca dari luar** (SEC-CONTRACT-006, NEP-330):
+  - `[package.metadata.near.reproducible_build]` di ketiga crate (`contract/`, `market/`,
+    `factory/`) dengan image Docker **ter-pin by digest**
+    (`sourcescan/cargo-near:0.21.1-rust-1.96.0`) — build reproducible dijalankan di container,
+    sehingga toolchain rilis = isi image, bukan `rust-toolchain.toml` lokal.
+  - `repository` di `[package]` → field `link` NEP-330 terisi; `version` → field `version` NEP-330.
+  - Workflow baru [`.github/workflows/release.yml`](./.github/workflows/release.yml): dipicu tag
+    `contract-v*`/`web-v*`/`indexer-v*`, memeriksa **versi manifest == versi tag**, membangun wasm
+    secara reproducible, **membuktikan metadata NEP-330 yang tertanam == tag**, lalu melampirkan
+    wasm + `code-hash.txt` ke GitHub Release. Bisa diuji-kering lewat `workflow_dispatch`.
+  - `ci.yml` kini membangun **ABI** (bukan lagi `--no-abi`) dan memverifikasi metadata NEP-330
+    tiap PR — versi tidak bisa lagi basi tanpa CI memerah.
 - **NFT collection core (TASK-002, 2026-10-07)** — `contract/src/lib.rs` kini punya perilaku nyata:
   NEP-171 core (`nft_transfer`/`nft_transfer_call`/`nft_resolve_transfer`/`nft_token`), NEP-177 metadata
   (kontrak + per-token), NEP-178 approval (`nft_approve`/`nft_revoke`/`nft_revoke_all`/`nft_is_approved`),
@@ -80,6 +100,45 @@ Kebijakan lengkap: [docs/development/versioning-and-release.md](./docs/developme
 ### Indexer (fase 2 — Neardata)
 ### Added
 - (belum ada — menunggu Fase 3)
+
+---
+
+## Rilis pertama — prosedur & rollback
+
+> Ditulis di TASK-032. Ringkas saja; aturan lengkapnya milik
+> [versioning-and-release.md](./docs/development/versioning-and-release.md) §5/§12/§14,
+> [git-workflow.md](./docs/development/git-workflow.md) §3/§12/§15, dan
+> [ci-cd.md](./docs/development/ci-cd.md) §5/§14/§16.
+
+**Artefak pertama:** `contract-v0.1.0` (isi = seluruh entri `### Contract` di `Unreleased`).
+
+```text
+1. PR feat/* → dev → CI + Security hijau → squash merge.
+2. PR dev → testnet   ← WAJIB tanya user dulu (git-workflow §3).
+3. PR testnet → mainnet ← WAJIB tanya user dulu.
+4. Di mainnet, pada commit hasil merge:
+     git tag -a contract-v0.1.0 -m "contract-v0.1.0 — rilis pertama (TASK-032)"
+     git push origin contract-v0.1.0
+5. Workflow release.yml jalan otomatis pada tag:
+     - versi manifest (contract/market/factory Cargo.toml) harus == 0.1.0;
+     - wasm di-build reproducible di container ter-pin;
+     - metadata NEP-330 tertanam harus memuat version=0.1.0 + link repo;
+     - wasm + code-hash.txt dilampirkan ke GitHub Release.
+6. Pindahkan entri `Unreleased` ke heading `## [contract-v0.1.0] - YYYY-MM-DD` (UTC)
+   di commit dokumentasi terpisah (versioning §5 langkah 7).
+```
+
+**Rollback** (versioning §12, ci-cd §16, git-workflow §15):
+
+| Lapis | Aksi | Catatan |
+|---|---|---|
+| Branch target | `git revert -m 1 <merge-commit-promosi>` di `mainnet`, lalu promosikan ulang lewat alur normal | revert merge commit = cara standar ([git-workflow.md](./docs/development/git-workflow.md) §15) |
+| Kontrak ter-deploy | redeploy wasm dari tag rilis sebelumnya ke akun yang sama (state persist) | bila storage layout berubah → jalankan migrate yang sesuai |
+| Tag | **jangan** ubah/hapus tag yang sudah di-push (diblokir ruleset `protect-release-tags`); perbaikan = rilis PATCH baru | [versioning-and-release.md](./docs/development/versioning-and-release.md) §11 |
+| Catatan | setiap rollback ditulis di CHANGELOG bagian artefak terkait — entri rilis yang di-rollback **tidak dihapus** | versioning §8 |
+
+- Kontrak **belum di-deploy** ke testnet/mainnet (butuh persetujuan user — git-workflow §3), jadi
+  baris "Kontrak ter-deploy" baru relevan setelah deploy pertama.
 
 ---
 
