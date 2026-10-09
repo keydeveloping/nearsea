@@ -67,14 +67,16 @@ impl CollectionContract {
 
 ## 2. Surface standar NEP (ringkas — signature resmi di-derive)
 
-Ditulis sekali di sini; implementasi via derive `near-sdk-contract-tools` (bukan tulis manual).
+Implementasi via derive `near-sdk-contract-tools` (bukan tulis manual) untuk NEP-171/177/178/181;
+**NEP-199 tidak punya derive di `near-sdk-contract-tools` 4.0**, jadi `nft_transfer_payout` ditulis
+manual mengikuti signature standar (lihat §4 "Status implementasi" untuk keputusan implementasinya).
 
 | NEP | Method | Catatan |
 |---|---|---|
 | NEP-171 core | `nft_token`, `nft_transfer`, `nft_transfer_call`, `nft_resolve_transfer` | `nft_transfer` wajib `assert_one_yocto()` (FACT — [RESEARCH.md](../../RESEARCH.md) §3). |
 | NEP-177 metadata | `nft_metadata` + metadata per token | Media IPFS; on-chain hanya URL + hash. |
 | NEP-178 approval | `nft_approve`, `nft_revoke`, `nft_revoke_all`, `nft_is_approved`, `nft_on_approve` | Kunci listing 2-tx ([ADR-002](../decisions/ADR-002-listing-two-tx.md)); market memverifikasi sendiri, callback tidak membuat listing. |
-| NEP-199 royalty | `nft_transfer_payout(receiver_id, token_id, approval_id, memo?, balance, max_len_payout?)` | Dipanggil **market** dengan attach 1 yocto + 15 Tgas (FACT); return `Payout = HashMap<AccountId, U128>` dari §4. |
+| NEP-199 royalty | `nft_transfer_payout(receiver_id, token_id, approval_id, memo?, balance, max_len_payout?)` | Dipanggil **market** dengan attach 1 yocto + 15 Tgas (FACT); return `Payout = HashMap<AccountId, U128>` dari §4. **Diimplementasikan (TASK-003)** — lihat §4 "Status implementasi". |
 | NEP-181 enumeration | `nft_total_supply`, `nft_tokens`, `nft_tokens_for_owner` | Halaman koleksi & profil (FE baca langsung RPC — MVP, [ADR-004](../decisions/ADR-004-mvp-data-layer.md)). |
 | NEP-145 storage | `storage_deposit`, `storage_withdraw`, `storage_minimum_balance`, `storage_balance_of` | Pre-deposit untuk mint + allowlist (INV-019/020). |
 | NEP-297 events | — | Envelope `EVENT_JSON:` satu baris; skema [api/webhooks.md](../api/webhooks.md). |
@@ -160,8 +162,10 @@ impl CollectionContract {
 /// INV-003: payout ≥ 1 receiver, amount > 0 → royalty_bps ≥ 1 (lihat §1).
 fn royalty_payout(&self, balance: U128) -> Payout {
     let amount = u128::from(balance.0) * self.royalty_bps as u128 / 10_000; // floor
-    // amount == 0 hanya mungkin di jalur bundle dgn basis sangat kecil:
-    // receiver dilewati (tidak masuk merge) — INV-003 divalidasi market di payout FINAL.
+    // amount == 0 hanya mungkin bila `balance` di bawah granularitas rate (mis. < 20 yocto
+    // di 500 bps). Entri TETAP dikembalikan apa adanya — kontrak tidak menyembunyikan
+    // penerima dust; market yang menolaknya lewat validasi INV-003 (`∀p.amount > 0`)
+    // pada payout FINAL. Lihat §4 "Status implementasi" untuk alasan lengkap.
     Payout::from([(self.creator_id.clone(), U128(amount))])
 }
 ```
@@ -173,6 +177,33 @@ fn royalty_payout(&self, balance: U128) -> Payout {
 - Aturan 2 & 3 dieksekusi **market** (pre-validasi `create_bundle`); kontrak koleksi menyediakan data basis via dua view PROPOSED di §5.
 - Validasi `Σroyalti + fee ≤ harga_bundle` = bagian pre-validasi `create_bundle` (INV-025) di market ([market.md](./market.md) §Callbacks); kegagalan → `CONFLICT_PRE_VALIDATE_FAILED`.
 - Cap royalti **per token** 10% (INV-027); agregat bundle = penjumlahan tanpa cap; penerima unik hasil merge ≤10 (INV-021).
+
+### Status implementasi (TASK-003, ronde 21)
+
+`nft_transfer_payout` + `royalty_payout` ada di `contract/src/lib.rs`. Keputusan implementasi:
+
+| Hal | Perilaku yang dipilih | Alasan |
+|---|---|---|
+| Otorisasi | Sama dengan `nft_transfer`: `approval_id` → jalur approval NEP-178; tanpa `approval_id` → jalur owner | NEP-199 "menerima semua argumen `nft_transfer`"; market selalu mengirim `approval_id` listing |
+| Tipe `approval_id` | `Option<u64>` di ABI (sesuai [market.md](./market.md) §Skema Argumen), dipetakan ke `u32` internal derive NEP-178 | Id di luar rentang `u32` tidak mungkin valid → diperlakukan sebagai "bukan approval" (jalur owner), bukan panic |
+| 1 yocto | `assert_one_yocto()` | NEP-199 + SEC-CONTRACT-001 |
+| `max_len_payout` | `Some(n)` dengan `payout.len() > n` → panic `CHAIN_REVERT`; `None` = tanpa plafon | NEP-199 mensyaratkan panic bila payout melebihi plafon; payout koleksi selalu 1 penerima sehingga `max_len_payout = 10` dari market selalu lolos |
+| Aritmetika | `checked_mul` → `/ 10_000` (floor); overflow → `CHAIN_REVERT` | SEC-CONTRACT-005 (checked math) |
+| `amount == 0` | Tetap dikembalikan sebagai satu entri ber-amount `0` (tidak dihilangkan) | INV-003 divalidasi market pada payout **final**; kontrak tidak menyembunyikan penerima dust |
+| Pesan panic | Semua jalur gagal memakai kode registry — termasuk kegagalan transfer dari derive: `format!("{}: {e}", err::CHAIN_REVERT)` | [error-handling.md](../development/error-handling.md) §4: pemetaan FE tidak boleh bergantung pada teks pesan library |
+| Gas | Tanpa XCC, tanpa tulis state baru | Terukur **~1,70 Tgas** host gas di unit test (batas bawah — tanpa gas CPU wasm); anggaran market 15 Tgas, angka final di sandbox TASK-006 |
+
+- **Konsekuensi dust (`amount == 0`)**: karena `amount == 0` hanya muncul bila `balance` di bawah
+  granularitas rate (mis. `< 20` yocto di 500 bps), dan market menolak payout ber-amount `0`
+  (`∀p.amount > 0`, INV-003), token seperti itu **tidak bisa di-settle** — ditolak + refund. Ini
+  fail-closed dan praktis tak terjangkau (harga NFT tidak pernah se-fraksi itu). Alternatif
+  "hilangkan entri" menghasilkan payout **kosong**, yang juga ditolak market (`1 ≤ len`), jadi
+  hasilnya sama; memilih mengembalikan entri apa adanya lebih sederhana (tanpa logika filter)
+  dan membuat dust terlihat, bukan tersembunyi.
+
+Bukti unit (11 test): perpindahan kepemilikan + payout kreator, batas ≤10% untuk 4 rate × 6 basis, dust (`19` → `0`, `20` → `1` di 500 bps), tepat 10% di cap, turunan dari konfigurasi level kontrak, wajib 1 yocto, penolakan pengirim tanpa approval, token tidak ada, `max_len_payout` terlalu kecil, dan approval lama invalid setelah transfer (INV-011).
+
+- **Belum dibuktikan di tiket ini:** TC-003 versi sandbox — yaitu validasi payout di sisi **market** (≥1 penerima, Σ ≤ harga−fee, sisa ≤1 yocto, refund saat invalid) dan angka gas penuh (butuh dua kontrak). Sama seperti TC-001 di TASK-002, bagian yang bisa dibuktikan di unit sudah dibuktikan di unit.
 
 ---
 
@@ -318,7 +349,7 @@ pub enum StorageKey {
 | `nft_mint` | siapa pun yang lolos validasi | `nft_mint` + `launchpad_mint` (+ lazy `launchpad_phase_start`) | `LAUNCHPAD_PHASE_INACTIVE`, `LAUNCHPAD_NOT_ALLOWED`, `LAUNCHPAD_ALLOCATION_EXHAUSTED`, `LAUNCHPAD_MAX_PER_WALLET`, `LAUNCHPAD_PRICE_MISMATCH`, `CHAIN_REVERT` (storage) |
 | `set_phases` | owner | — (tanpa event) | `CONFLICT_PHASE_OVERLAP`, `INVALID_PRICE`, `CHAIN_REVERT` |
 | `allowlist_add` | owner | — (tanpa event) | `CHAIN_REVERT` (batch/storage/baris > max_per_wallet) |
-| `nft_transfer_payout` | market (approval NEP-178) | `nft_transfer` (standar, oleh transfer) | — (payout divalidasi market: [payments.md](../features/payments.md)) |
+| `nft_transfer_payout` | market (approval NEP-178) atau owner | `nft_transfer` (standar, oleh transfer) | `CHAIN_REVERT` (assert 1 yocto; `max_len_payout` < jumlah penerima; overflow aritmetika) — payout divalidasi market: [payments.md](../features/payments.md) |
 | `storage_deposit` / `storage_withdraw` | pemilik saldo (`account_id` bila menyetor untuk orang lain) | — | `CHAIN_REVERT` |
 | View (`get_launchpad`, `allowlist_contains`, `mint_price_of`, `royalty_config`, NEP-181) | publik, gratis (RPC read) | — | — |
 
@@ -331,19 +362,19 @@ pub enum StorageKey {
 - Nilai bertanda PROPOSED/⏳ = final saat implementasi + diukur sandbox; tidak boleh dianggap keputusan bisnis.
 - Invariant relevan: INV-017, INV-018, INV-019, INV-021, INV-027, INV-029 ([smart-contract-invariants.md](../security/smart-contract-invariants.md)); requirement SEC-CONTRACT-002/008/009/010/011.
 
-### Status implementasi (ronde 19 — TASK-002)
+### Status implementasi (ronde 21 — TASK-002 + TASK-003)
 
-`contract/src/lib.rs` sudah mengimplementasikan **§1–§3, §5–§7**: init, surface NEP-171/177/178/181 via
+`contract/src/lib.rs` sudah mengimplementasikan **§1–§5, §7**: init, surface NEP-171/177/178/181 via
 derive `NonFungibleToken`, NEP-145 storage, event NEP-297, `nft_mint` launchpad-aware, `set_phases`,
-`allowlist_add`, `get_launchpad`, `allowlist_contains`, `royalty_config`, `market_id`. Bukti: 31 unit test
-di crate (fmt + clippy `-D warnings` bersih, wasm ter-build).
+`allowlist_add`, `get_launchpad`, `allowlist_contains`, `royalty_config`, `market_id`, dan
+**`nft_transfer_payout` NEP-199 + derivasi payout §4** (TASK-003). Bukti: 42 unit test di crate
+(fmt + clippy `-D warnings` bersih, wasm ter-build 272 KB dengan `nft_transfer_payout` di ABI).
 
 Belum diimplementasikan (sengaja, bukan kelalaian):
 
 | Bagian | Milik | Catatan |
 |---|---|---|
-| `nft_transfer_payout` (NEP-199) + derivasi payout §4 | **TASK-003** | Dokumen §4 sudah final; kode menyusul. |
 | `mint_price_of` (basis royalti bundle) | **TASK-010** | View PROPOSED; dipakai pre-validasi bundle, bukan slice M1. |
 | Fase bebas penuh + `Pausable` + `MAX_FEE_BPS` | **TASK-020** | Tiket ini cukup satu fase publik untuk slice. |
-| Kalibrasi konstanta §6 (`MAX_MINT_PER_CALL`, `MAX_ALLOWLIST_BATCH`, `MAX_PHASES`, `GAS_FOR_MINT`) | **TASK-006** | Nilai saat ini = usulan dokumen; diukur di sandbox. |
+| Kalibrasi konstanta §6 (`MAX_MINT_PER_CALL`, `MAX_ALLOWLIST_BATCH`, `MAX_PHASES`, `GAS_FOR_MINT`) + gas payout 15 Tgas | **TASK-006** | Nilai saat ini = usulan dokumen; diukur di sandbox. |
 | Deploy ke testnet | butuh **persetujuan user** | [git-workflow.md](../development/git-workflow.md) §3. |

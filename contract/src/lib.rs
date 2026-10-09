@@ -1,9 +1,8 @@
-//! NearSea NFT Collection — NEP-171/177/178/181/297 + state launchpad.
+//! NearSea NFT Collection — NEP-171/177/178/181/199/297 + state launchpad.
 //!
-//! Reference implementasi: docs/contracts/nft-collection.md §1–§3, §5–§7.
-//! Royalti NEP-199 (`nft_transfer_payout`) menyusul di TASK-003; fase bebas penuh
-//! (allowlist penuh, Pausable, MAX_FEE_BPS) di TASK-020. Tiket ini menutup mint
-//! launchpad-aware + satu fase publik agar tesis slice M1 bisa dijalankan.
+//! Reference implementasi: docs/contracts/nft-collection.md §1–§7.
+//! Fase bebas penuh (allowlist penuh, Pausable, MAX_FEE_BPS) menyusul di TASK-020;
+//! `mint_price_of` (basis royalti bundle) di TASK-010.
 //!
 //! Prefix storage kanonik: docs/contracts/nft-collection.md §7 (SEC-CONTRACT-008).
 
@@ -11,12 +10,13 @@ use near_sdk::borsh::BorshSerialize;
 use near_sdk::collections::{LookupMap, Vector};
 use near_sdk::json_types::U128;
 use near_sdk::serde::Serialize;
-use near_sdk::{env, near, AccountId, BorshStorageKey, PanicOnDefault};
+use near_sdk::{assert_one_yocto, env, near, AccountId, BorshStorageKey, PanicOnDefault};
 use near_sdk_contract_tools::nft::*;
 use near_sdk_contract_tools::owner::Owner;
 use near_sdk_contract_tools::standard::nep297::{Event, EventLog, ToEventLog};
 use near_sdk_contract_tools::Owner as OwnerDerive;
 use std::borrow::Cow;
+use std::collections::HashMap;
 
 /// Cap royalti per token 10% (INV-027).
 pub const MAX_ROYALTY_BPS: u16 = 1000;
@@ -131,6 +131,10 @@ pub struct RoyaltyConfig {
     pub bps: u16,
 }
 
+/// Payout NEP-199 — map penerima → jumlah yoctoNEAR (docs/contracts/nft-collection.md §2/§4).
+/// Market memperlakukan nilai ini sebagai **UNTRUSTED** dan memvalidasinya sendiri.
+pub type Payout = HashMap<AccountId, U128>;
+
 /// Envelope event NearSea — `data` selalu array satu entri (docs/api/webhooks.md §Skema payload).
 /// Dipakai semua event custom `x-nearsea-market` (koleksi ini; market/factory menyusul).
 pub struct SingleEvent<T> {
@@ -179,6 +183,15 @@ pub struct LaunchpadMint {
 /// (docs/contracts/nft-collection.md §3).
 fn is_active(phase: &Phase, now: u64) -> bool {
     phase.starts_at <= now && now < phase.ends_at
+}
+
+/// Royalti satu token = `floor(balance × bps / 10_000)` (docs/contracts/nft-collection.md §4).
+/// INV-027: `bps ≤ MAX_ROYALTY_BPS` dijaga saat init, jadi hasil selalu ≤10% `balance`.
+fn royalty_amount(balance: u128, bps: u16) -> u128 {
+    balance
+        .checked_mul(u128::from(bps))
+        .unwrap_or_else(|| env::panic_str(err::CHAIN_REVERT))
+        / 10_000
 }
 
 #[near(contract_state)]
@@ -331,6 +344,56 @@ impl NftCollection {
         .emit();
     }
 
+    /// NEP-199: pindahkan token ke `receiver_id` (otorisasi market lewat approval NEP-178)
+    /// sekaligus kembalikan payout royalti untuk `balance` (harga wajar token).
+    /// Market memvalidasi payout ini sendiri — nilainya UNTRUSTED
+    /// (docs/features/payments.md §Algoritma Distribusi Payout).
+    #[payable]
+    pub fn nft_transfer_payout(
+        &mut self,
+        receiver_id: AccountId,
+        token_id: TokenId,
+        approval_id: Option<u64>,
+        memo: Option<String>,
+        balance: U128,
+        max_len_payout: Option<u32>,
+    ) -> Payout {
+        assert_one_yocto();
+
+        let payout = self.royalty_payout(balance);
+
+        // NEP-199: pemanggil menyatakan plafon jumlah penerima yang disanggupinya.
+        if let Some(limit) = max_len_payout {
+            if payout.len() > limit as usize {
+                env::panic_str(err::CHAIN_REVERT);
+            }
+        }
+
+        // Approval id kontrak ini `u32` (derive NEP-178). Id di luar rentang itu tidak mungkin
+        // valid, jadi diperlakukan sebagai "bukan approval" → jalur owner, yang tetap gagal
+        // bila pemanggil bukan pemilik (fail-closed).
+        let authorization = approval_id
+            .and_then(|id| u32::try_from(id).ok())
+            .map(nep171::Nep171TransferAuthorization::ApprovalId)
+            .unwrap_or(nep171::Nep171TransferAuthorization::Owner);
+
+        let transfer = Nep171Transfer::new(
+            token_id,
+            env::predecessor_account_id(),
+            receiver_id,
+            authorization,
+        );
+        let transfer = match memo {
+            Some(memo) => transfer.memo(memo),
+            None => transfer,
+        };
+
+        <Self as Nep171Controller>::external_transfer(self, &transfer)
+            .unwrap_or_else(|e| env::panic_str(&format!("{}: {e}", err::CHAIN_REVERT)));
+
+        payout
+    }
+
     /// Replace-all konfigurasi fase (owner-only). Deposit terlampir dikreditkan ke
     /// saldo storage NEP-145 creator, lalu pertumbuhan state fase ditagihkan dari sana.
     #[payable]
@@ -479,6 +542,17 @@ impl NftCollection {
         }
     }
 
+    /// Payout royalti satu token pada `balance` (harga wajar token) — floor ke yocto.
+    /// Diturunkan dari konfigurasi **level kontrak**, bukan per-token
+    /// (docs/contracts/nft-collection.md §4). INV-027: rate ≤10% sudah dijaga saat init.
+    fn royalty_payout(&self, balance: U128) -> Payout {
+        let amount = royalty_amount(balance.0, self.royalty_bps);
+
+        // `amount == 0` (basis di bawah granularitas rate) tetap dikembalikan apa adanya:
+        // market yang memutuskan penerima dust ini masuk merge atau tidak (INV-003).
+        Payout::from([(self.creator_id.clone(), U128(amount))])
+    }
+
     /// Referensi market yang ditampilkan FE/indexer (tidak dipakai otorisasi).
     pub fn market_id(&self) -> Option<AccountId> {
         self.market_id.clone()
@@ -541,7 +615,7 @@ impl NftCollection {
 mod tests {
     use super::*;
     use near_sdk::test_utils::{get_logs, VMContextBuilder};
-    use near_sdk::{testing_env, NearToken};
+    use near_sdk::{testing_env, Gas, NearToken};
     use near_sdk_contract_tools::owner::OwnerExternal;
 
     const ONE_NEAR: u128 = 1_000_000_000_000_000_000_000_000;
@@ -566,6 +640,10 @@ mod tests {
         "bob.testnet".parse().unwrap()
     }
 
+    fn market() -> AccountId {
+        "market.testnet".parse().unwrap()
+    }
+
     fn ctx(predecessor: &AccountId, deposit: u128, now: u64) -> VMContextBuilder {
         let mut builder = VMContextBuilder::new();
         builder
@@ -580,11 +658,15 @@ mod tests {
     }
 
     fn new_contract() -> NftCollection {
+        new_contract_with_royalty(500)
+    }
+
+    fn new_contract_with_royalty(royalty_bps: u16) -> NftCollection {
         run(&owner(), 0, T0);
         NftCollection::new(
             owner(),
             creator(),
-            500,
+            royalty_bps,
             "Genesis".to_string(),
             "GNS".to_string(),
             Some("https://ipfs.io/ipfs/bafy-collection".to_string()),
@@ -628,6 +710,29 @@ mod tests {
             max_per_wallet,
         )]);
         contract
+    }
+
+    /// Token `0` milik alice, sudah di-approve ke market (situasi listing 2-tx).
+    fn contract_with_approved_token() -> NftCollection {
+        let mut contract = contract_with_public_phase(10, 2);
+        deposit_storage(&mut contract, &alice());
+        deposit_storage(&mut contract, &bob());
+
+        run(&alice(), PRICE, T0);
+        contract.nft_mint(None, 1);
+
+        run(&alice(), 1, T0);
+        let _ = contract.nft_approve("0".to_string(), market(), None);
+        contract
+    }
+
+    /// `approval_id` yang dipegang market untuk token `0`.
+    fn market_approval_id(contract: &NftCollection) -> u64 {
+        u64::from(
+            contract
+                .get_approval_id_for(&"0".to_string(), &market())
+                .expect("market harus punya approval"),
+        )
     }
 
     // --- init (SEC-CONTRACT-002, AC "Init menolak royalty_bps di luar 1..=1000") ---
@@ -870,6 +975,203 @@ mod tests {
 
         run(&alice(), PRICE, T0);
         contract.nft_mint(Some(7), 1);
+    }
+
+    // --- royalti NEP-199 (INV-003/027, TC-003) ---
+
+    #[test]
+    fn test_transfer_payout_moves_token_and_returns_creator_royalty() {
+        let mut contract = contract_with_approved_token();
+        let approval_id = market_approval_id(&contract);
+
+        run(&market(), 1, T0);
+        let payout = contract.nft_transfer_payout(
+            bob(),
+            "0".to_string(),
+            Some(approval_id),
+            None,
+            U128(PRICE),
+            Some(10),
+        );
+
+        assert_eq!(
+            contract.nft_token("0".to_string()).expect("token").owner_id,
+            bob(),
+            "NEP-199 memindahkan token dalam panggilan yang sama"
+        );
+        assert_eq!(payout.len(), 1, "koleksi selalu membayar satu penerima");
+        assert_eq!(payout[&creator()], U128(PRICE * 500 / 10_000));
+        assert!(
+            payout[&creator()].0 * 10 <= PRICE,
+            "royalti per token ≤10% harga (INV-027)"
+        );
+    }
+
+    #[test]
+    fn test_transfer_payout_never_exceeds_ten_percent() {
+        for bps in [MIN_ROYALTY_BPS, 250, 500, MAX_ROYALTY_BPS] {
+            for balance in [1u128, 19, 20, 999, PRICE, PRICE * 7] {
+                let amount = royalty_amount(balance, bps);
+
+                assert_eq!(
+                    amount,
+                    balance * u128::from(bps) / 10_000,
+                    "floor eksak (bps={bps}, balance={balance})"
+                );
+                assert!(
+                    amount * 10 <= balance,
+                    "bps={bps} balance={balance} → amount={amount} melebihi 10%"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_transfer_payout_floors_to_zero_on_dust_basis() {
+        // 500 bps → granularitas 20 yocto; di bawah itu royalti dust = 0.
+        assert_eq!(royalty_amount(19, 500), 0);
+        assert_eq!(royalty_amount(20, 500), 1);
+    }
+
+    #[test]
+    fn test_transfer_payout_at_cap_is_exactly_ten_percent() {
+        assert_eq!(royalty_amount(PRICE, MAX_ROYALTY_BPS), PRICE / 10);
+    }
+
+    #[test]
+    fn test_payout_uses_contract_level_royalty_config() {
+        let contract = new_contract_with_royalty(750);
+        let config = contract.royalty_config();
+
+        assert_eq!(config.receiver, creator());
+        assert_eq!(config.bps, 750);
+        assert_eq!(
+            contract.royalty_payout(U128(PRICE)),
+            Payout::from([(config.receiver, U128(PRICE * 750 / 10_000))]),
+            "payout = konfigurasi royalti level kontrak, bukan metadata per-token"
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "Requires attached deposit of exactly 1 yoctoNEAR")]
+    fn test_transfer_payout_requires_one_yocto() {
+        let mut contract = contract_with_approved_token();
+        let approval_id = market_approval_id(&contract);
+
+        run(&market(), 0, T0);
+        contract.nft_transfer_payout(
+            bob(),
+            "0".to_string(),
+            Some(approval_id),
+            None,
+            U128(PRICE),
+            Some(10),
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "CHAIN_REVERT")]
+    fn test_transfer_payout_rejected_for_unapproved_sender() {
+        let mut contract = contract_with_approved_token();
+
+        run(&bob(), 1, T0);
+        contract.nft_transfer_payout(
+            alice(),
+            "0".to_string(),
+            Some(0),
+            None,
+            U128(PRICE),
+            Some(10),
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "CHAIN_REVERT")]
+    fn test_transfer_payout_rejected_for_unknown_token() {
+        let mut contract = contract_with_approved_token();
+
+        run(&market(), 1, T0);
+        contract.nft_transfer_payout(
+            bob(),
+            "99".to_string(),
+            Some(0),
+            None,
+            U128(PRICE),
+            Some(10),
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "CHAIN_REVERT")]
+    fn test_transfer_payout_rejects_max_len_payout_below_payout_size() {
+        let mut contract = contract_with_approved_token();
+        let approval_id = market_approval_id(&contract);
+
+        // Payout = 1 penerima; pemanggil yang hanya menyanggupi 0 penerima ditolak (NEP-199).
+        run(&market(), 1, T0);
+        contract.nft_transfer_payout(
+            bob(),
+            "0".to_string(),
+            Some(approval_id),
+            None,
+            U128(PRICE),
+            Some(0),
+        );
+    }
+
+    #[test]
+    fn test_transfer_payout_fits_market_gas_budget() {
+        let mut contract = contract_with_approved_token();
+        let approval_id = market_approval_id(&contract);
+
+        // Mock near-sdk memakai VMLogic asli, jadi prepaid gas benar-benar ditegakkan.
+        // Angka terukur ~1,70 Tgas adalah gas host function saja (tanpa gas CPU wasm), jadi
+        // ia batas bawah; ambang 5 Tgas di bawah memberi ruang bagi variasi CPU.
+        let mut builder = ctx(&market(), 1, T0);
+        builder.prepaid_gas(Gas::from_tgas(15));
+        testing_env!(builder.build());
+
+        let payout = contract.nft_transfer_payout(
+            bob(),
+            "0".to_string(),
+            Some(approval_id),
+            None,
+            U128(PRICE),
+            Some(10),
+        );
+
+        assert_eq!(payout.len(), 1);
+        assert_eq!(
+            contract.nft_token("0".to_string()).expect("token").owner_id,
+            bob()
+        );
+        assert!(
+            env::used_gas() < Gas::from_tgas(5),
+            "jalur payout harus jauh di bawah anggaran 15 Tgas market, terpakai {:?}",
+            env::used_gas()
+        );
+    }
+
+    #[test]
+    fn test_transfer_payout_invalidates_approval() {
+        let mut contract = contract_with_approved_token();
+        let approval_id = market_approval_id(&contract);
+        assert!(contract.nft_is_approved("0".to_string(), market(), Some(approval_id as u32)));
+
+        run(&market(), 1, T0);
+        contract.nft_transfer_payout(
+            bob(),
+            "0".to_string(),
+            Some(approval_id),
+            None,
+            U128(PRICE),
+            Some(10),
+        );
+
+        assert!(
+            !contract.nft_is_approved("0".to_string(), market(), None),
+            "approval lama invalid setelah transfer (INV-011)"
+        );
     }
 
     // --- set_phases (INV-029) ---

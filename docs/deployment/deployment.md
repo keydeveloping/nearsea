@@ -8,7 +8,7 @@ local dev → sandbox test → testnet deploy → verifikasi manual → mainnet 
 
 ## Kontrak
 
-- Build: `cargo near build` → `out/*.wasm` (**workflow reproducible — NEP-330**; verifikasi via `contract_source_metadata`)
+- Build: `cargo near build reproducible-wasm` → `artifacts/<crate>/*.wasm` (**workflow reproducible — NEP-330**; verifikasi via `contract_source_metadata`). Versi & tag: [versioning-and-release.md](../development/versioning-and-release.md) §5.
 - Deploy testnet: `cargo near deploy` dengan init `new(owner_id)` — **CATATAN MAINNET: `owner_id` = akun Sputnik DAO V2 council 2-of-3 + timelock, BUKAN wallet pribadi** (ADR-013)
 - Upgrade kontrak: redeploy ke akun sama (state persist); perubahan struktur state → `#[init(ignore_state)]` migrate (docs resmi); break-glass terakhir: State Cleaner
 - Global contract (hemat storage) sebagai opsi — RESEARCH.md bagian 4
@@ -53,13 +53,22 @@ local dev → sandbox test → testnet deploy → verifikasi manual → mainnet 
 git fetch --tags
 git checkout contract-v0.1.0        # tag rilis (SemVer per-artefak)
 
-# Build reproducible — output di contract/out/
-cd contract
-cargo near build
+# Build reproducible — dijalankan DI DALAM container Docker ter-pin by digest
+# (image = toolchain rilis; lihat [package.metadata.near.reproducible_build]).
+# Butuh Docker; di runner tanpa Docker pakai build cepat `non-reproducible-wasm`.
+for crate in contract market factory; do
+  cargo near build reproducible-wasm \
+    --manifest-path "$crate/Cargo.toml" \
+    --out-dir "artifacts/$crate"
+done
 
 # Catat hash artifact (dibandingkan dengan artifact CI & metadata on-chain).
-sha256sum out/*.wasm | tee /tmp/nearsea-contract-hashes.txt
+find artifacts -name '*.wasm' -type f | sort | xargs sha256sum | tee /tmp/nearsea-contract-hashes.txt
 ```
+
+- Build reproducible **wajib** lewat workflow [release.yml](../../.github/workflows/release.yml) saat
+  tag di-push — di sana versi manifest == tag dan metadata NEP-330 == tag dibuktikan otomatis.
+  Perintah di atas hanya untuk menjalankan hal yang sama secara manual/lokal.
 
 ### 2. Verifikasi hash lokal == artifact CI
 

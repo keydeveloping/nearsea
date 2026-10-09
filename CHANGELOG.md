@@ -10,6 +10,13 @@ Kebijakan lengkap: [docs/development/versioning-and-release.md](./docs/developme
 > Status: **pra-rilis** — belum ada artefak ter-deploy. Entri pertama (scaffold TASK-001)
 > ada di bawah; **belum ada versi rilis** (`contract-v*`/`web-v*`) karena belum ada artefak
 > yang di-deploy atau di-tag.
+>
+> **Rilis pertama yang disiapkan (TASK-032): `contract-v0.1.0`.** Isi rilis = seluruh entri
+> `### Contract` di bawah. Sesuai [versioning-and-release.md](./docs/development/versioning-and-release.md) §5,
+> heading versi + tanggal dibuat **saat tag di-push** (langkah 7), bukan sekarang — sehingga
+> tidak ada heading versi yang menjanjikan rilis yang belum terjadi. Tag dibuat di `mainnet`
+> setelah PR promosi `dev → testnet → mainnet` (wajib persetujuan user — [git-workflow.md](./docs/development/git-workflow.md) §3/§12).
+> Prosedur rilis & rollback: §Rilis pertama di bawah.
 
 ---
 
@@ -59,6 +66,44 @@ Kebijakan lengkap: [docs/development/versioning-and-release.md](./docs/developme
 
 ### Contract (kontrak NFT + market + factory)
 ### Added
+- **Market listing 2-tx + storage NEP-145 (TASK-004, 2026-10-08)** — `market/src/lib.rs` kini punya jalur
+  listing: `list_nft_for_sale` (deposit = storage NEP-145, **bukan** 1 yocto) yang **tidak percaya klaim
+  pemanggil** — kontrak mengirim dua view call ke koleksi (`nft_token` → kepemilikan, `nft_is_approved` →
+  approval) dan callback `#[private]` `process_listing` yang baru menyimpan `Sale` bila keduanya lolos
+  (SEC-ORDER-004, ADR-002). Non-custodial: NFT tetap di wallet seller — jalur listing tidak pernah
+  memanggil `nft_transfer*`. Plus `remove_sale` (1 yocto, owner-only, boleh saat paused — INV-022),
+  `update_price` (in-place, min harga), view `get_sale`/`get_sales` (paginasi + clamp)/`get_supply_sales`,
+  dan event `market_list`/`market_delist`/`market_update_price` (envelope `SingleEvent` sama dengan koleksi).
+  Harga min 0.01 Ⓝ (INV-030, batas inklusif), duplikat listing ditolak (INV-007), storage kurang → revert
+  (INV-020), `approval_id` di luar rentang `u32` ditolak. Ditambah **`nft_on_approve`** (receiver NEP-178)
+  yang wajib ada untuk tx-1 (`nft_approve(market, msg)`) tapi sengaja **tidak** membuat listing (ADR-002),
+  dan pause yang ditegakkan **juga di callback** `process_listing` (receipt terpisah — INV-022).
+  **Belum termasuk**: `buy`/`resolve_purchase` +
+  `pending_purchases`/`recover_stuck_purchase` (TASK-005), `fee_bps`/`treasury` di init (TASK-005),
+  offers/bundle (TASK-009/010), `remove_stale_listing` (TASK-022), kalibrasi gas/storage sandbox (TASK-006).
+- **Royalti NEP-199 (TASK-003, 2026-10-08)** — `nft_transfer_payout` di `contract/src/lib.rs`:
+  memindahkan token ke `receiver_id` (otorisasi lewat approval NEP-178, `assert_one_yocto()`,
+  `max_len_payout` dihormati) **dan** mengembalikan payout royalti untuk `balance` dalam panggilan
+  yang sama, sesuai NEP-199. Payout = satu penerima (`creator_id`) dengan
+  `floor(balance × royalty_bps / 10_000)` (`checked_mul` → overflow = `CHAIN_REVERT`), diturunkan dari
+  konfigurasi royalti **level kontrak** — bukan `TokenMetadata.extra`, bukan per-token. Selalu ≤10%
+  harga (INV-027); entri ber-amount `0` (basis dust) tetap dikembalikan apa adanya supaya market yang
+  memutuskan validasi INV-003 pada payout final. **Belum termasuk**: pengukuran gas 15 Tgas dan
+  TC-003 versi sandbox (validasi payout di sisi market + refund) — keduanya milik suite dua-kontrak
+  TASK-006.
+- **Versioning & rilis (TASK-032, 2026-10-07)** — versi artefak kini **tertanam di build dan
+  bisa dibaca dari luar** (SEC-CONTRACT-006, NEP-330):
+  - `[package.metadata.near.reproducible_build]` di ketiga crate (`contract/`, `market/`,
+    `factory/`) dengan image Docker **ter-pin by digest**
+    (`sourcescan/cargo-near:0.21.1-rust-1.96.0`) — build reproducible dijalankan di container,
+    sehingga toolchain rilis = isi image, bukan `rust-toolchain.toml` lokal.
+  - `repository` di `[package]` → field `link` NEP-330 terisi; `version` → field `version` NEP-330.
+  - Workflow baru [`.github/workflows/release.yml`](./.github/workflows/release.yml): dipicu tag
+    `contract-v*`/`web-v*`/`indexer-v*`, memeriksa **versi manifest == versi tag**, membangun wasm
+    secara reproducible, **membuktikan metadata NEP-330 yang tertanam == tag**, lalu melampirkan
+    wasm + `code-hash.txt` ke GitHub Release. Bisa diuji-kering lewat `workflow_dispatch`.
+  - `ci.yml` kini membangun **ABI** (bukan lagi `--no-abi`) dan memverifikasi metadata NEP-330
+    tiap PR — versi tidak bisa lagi basi tanpa CI memerah.
 - **NFT collection core (TASK-002, 2026-10-07)** — `contract/src/lib.rs` kini punya perilaku nyata:
   NEP-171 core (`nft_transfer`/`nft_transfer_call`/`nft_resolve_transfer`/`nft_token`), NEP-177 metadata
   (kontrak + per-token), NEP-178 approval (`nft_approve`/`nft_revoke`/`nft_revoke_all`/`nft_is_approved`),
@@ -72,6 +117,19 @@ Kebijakan lengkap: [docs/development/versioning-and-release.md](./docs/developme
   (SEC-CONTRACT-002). Batas window fase `[starts_at, ends_at)` ditetapkan DECIDED. **Belum termasuk**:
   `nft_transfer_payout` NEP-199 (TASK-003), fase bebas penuh + Pausable (TASK-020).
 - Placeholder crate (init + owner/pause) — surface market/factory menyusul di TASK-004/005/012.
+
+### Fixed
+- **Koreksi spesifikasi `nft_revoke_token` (TASK-004, 2026-10-08)** — 5 dokumen menyebut `remove_sale`
+  memanggil `nft_revoke_token` "sebagai approved account". **Method itu tidak ada di NEP-178**: standar
+  hanya punya `nft_revoke`/`nft_revoke_all`, keduanya **owner-only** ("MUST panic if called by someone
+  other than token owner"), tanpa varian untuk approved account. Kontrak market karena itu **tidak**
+  mencabut approval saat cancel listing; aman karena tanpa entry `Sale` market tidak punya jalur
+  memindahkan token, dan transfer oleh owner otomatis mencabut semua approval (FACT NEP-178). Re-list =
+  seller `nft_revoke` dulu, baru `nft_approve` baru. Dirujuk di
+  [contracts/market.md](./docs/contracts/market.md) §2a; `features/marketplace.md`,
+  `security/smart-contract-security-architecture.md`, `security/order-protocol-security.md`,
+  `security/signature-architecture.md`, `02-product-requirements.md`, `00-project-overview.md`, dan
+  TC-044 disinkronkan.
 
 ### Web (frontend Next.js)
 ### Added
@@ -140,6 +198,45 @@ Kebijakan lengkap: [docs/development/versioning-and-release.md](./docs/developme
 ### Indexer (fase 2 — Neardata)
 ### Added
 - (belum ada — menunggu Fase 3)
+
+---
+
+## Rilis pertama — prosedur & rollback
+
+> Ditulis di TASK-032. Ringkas saja; aturan lengkapnya milik
+> [versioning-and-release.md](./docs/development/versioning-and-release.md) §5/§12/§14,
+> [git-workflow.md](./docs/development/git-workflow.md) §3/§12/§15, dan
+> [ci-cd.md](./docs/development/ci-cd.md) §5/§14/§16.
+
+**Artefak pertama:** `contract-v0.1.0` (isi = seluruh entri `### Contract` di `Unreleased`).
+
+```text
+1. PR feat/* → dev → CI + Security hijau → squash merge.
+2. PR dev → testnet   ← WAJIB tanya user dulu (git-workflow §3).
+3. PR testnet → mainnet ← WAJIB tanya user dulu.
+4. Di mainnet, pada commit hasil merge:
+     git tag -a contract-v0.1.0 -m "contract-v0.1.0 — rilis pertama (TASK-032)"
+     git push origin contract-v0.1.0
+5. Workflow release.yml jalan otomatis pada tag:
+     - versi manifest (contract/market/factory Cargo.toml) harus == 0.1.0;
+     - wasm di-build reproducible di container ter-pin;
+     - metadata NEP-330 tertanam harus memuat version=0.1.0 + link repo;
+     - wasm + code-hash.txt dilampirkan ke GitHub Release.
+6. Pindahkan entri `Unreleased` ke heading `## [contract-v0.1.0] - YYYY-MM-DD` (UTC)
+   di commit dokumentasi terpisah (versioning §5 langkah 7).
+```
+
+**Rollback** (versioning §12, ci-cd §16, git-workflow §15):
+
+| Lapis | Aksi | Catatan |
+|---|---|---|
+| Branch target | `git revert -m 1 <merge-commit-promosi>` di `mainnet`, lalu promosikan ulang lewat alur normal | revert merge commit = cara standar ([git-workflow.md](./docs/development/git-workflow.md) §15) |
+| Kontrak ter-deploy | redeploy wasm dari tag rilis sebelumnya ke akun yang sama (state persist) | bila storage layout berubah → jalankan migrate yang sesuai |
+| Tag | **jangan** ubah/hapus tag yang sudah di-push (diblokir ruleset `protect-release-tags`); perbaikan = rilis PATCH baru | [versioning-and-release.md](./docs/development/versioning-and-release.md) §11 |
+| Catatan | setiap rollback ditulis di CHANGELOG bagian artefak terkait — entri rilis yang di-rollback **tidak dihapus** | versioning §8 |
+
+- Kontrak **belum di-deploy** ke testnet/mainnet (butuh persetujuan user — git-workflow §3), jadi
+  baris "Kontrak ter-deploy" baru relevan setelah deploy pertama.
 
 ---
 

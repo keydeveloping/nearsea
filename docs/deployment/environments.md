@@ -107,8 +107,9 @@ chmod 600 .env
 
 # 2. Kontrak: build + test (workspace contract/market/factory).
 cargo test --workspace          # unit (host)
-cargo near build non-reproducible-wasm --no-abi --manifest-path contract/Cargo.toml
+cargo near build non-reproducible-wasm --manifest-path contract/Cargo.toml
 #   ulangi untuk market/ dan factory/ → target/near/<crate>/<crate>.wasm
+#   (build ini menyertakan ABI; build reproducible penuh butuh Docker — versioning §2)
 
 # 3. Database lokal (Docker) — belum ada sampai TASK-018/028.
 docker compose -f docker-compose.dev.yml up -d db

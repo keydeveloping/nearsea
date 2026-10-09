@@ -65,8 +65,9 @@ Near Marketplace/
 │   ├── CODEOWNERS             # reviewer otomatis per area (git-workflow §10)
 │   ├── dependabot.yml         # PR dependency mingguan → dev (git-workflow §14)
 │   └── workflows/
-│       ├── ci.yml             # fmt/clippy/test + build wasm + lint/typecheck/test/build
+│       ├── ci.yml             # fmt/clippy/test + build wasm+ABI + verifikasi NEP-330 + FE gates
 │       ├── security.yml       # gitleaks + audit + dependency review
+│       ├── release.yml        # tag rilis → versi==tag + build reproducible NEP-330 → GitHub Release
 │       ├── deploy-dev.yml     # manual — aktif saat TASK-028/029
 │       ├── deploy-testnet.yml # manual — aktif saat TASK-028/029
 │       └── deploy-mainnet.yml # manual + approval + gate
@@ -166,7 +167,9 @@ ulang), yang keliru untuk proyek yang tujuannya dipelajari.
 - **Tiga branch permanen**: `mainnet` (produksi), `testnet` (rilis testnet), `dev` (integrasi developer).
   Alur: `feat/*` → `dev` → `testnet` → `mainnet`. **Merge/deploy ke `testnet`/`mainnet` wajib persetujuan user.**
   Detail: [docs/development/git-workflow.md](./docs/development/git-workflow.md).
-- **SemVer per-artefak** (tag `contract-vX.Y.Z`, `web-vX.Y.Z`, `indexer-vX.Y.Z`).
+- **SemVer per-artefak** (tag `contract-vX.Y.Z`, `web-vX.Y.Z`, `indexer-vX.Y.Z`). Versi artefak
+  **tertanam di build** dan bisa dibaca dari luar (NEP-330 untuk kontrak); tag rilis memicu
+  [release.yml](./.github/workflows/release.yml) yang menolak tag bila versi manifest tidak cocok.
   Detail: [docs/development/versioning-and-release.md](./docs/development/versioning-and-release.md).
 
 ## Development
@@ -175,8 +178,11 @@ ulang), yang keliru untuk proyek yang tujuannya dipelajari.
 
 ```bash
 # Kontrak (Rust)
-cargo near build                      # build wasm
+cargo near build                      # build wasm + ABI (host runner)
 cargo test                            # unit + sandbox (near-workspaces)
+
+# Build rilis reproducible (NEP-330) — butuh Docker; dijalankan otomatis oleh release.yml pada tag
+cargo near build reproducible-wasm --manifest-path contract/Cargo.toml --out-dir artifacts/contract
 
 # Frontend (pnpm — package manager final)
 cd frontend && pnpm install && pnpm dev

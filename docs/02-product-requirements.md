@@ -102,7 +102,7 @@ Error: harga < 0.01 Ⓝ ditolak; sudah terlist → ditolak; storage kurang → m
 ```text
 1. Seller buka listing miliknya → Cancel / Edit Price
 2. assert_one_yocto; hanya owner listing yang bisa
-3. Cancel → nft_revoke_token (dipanggil market sebagai approved account) + hapus listing
+3. Cancel → entry `Sale` dihapus (market **tidak** mencabut approval — NEP-178 owner-only) + hapus listing
    Update → sale_conditions diganti
 Error: bukan owner → revert
 ```
@@ -542,7 +542,7 @@ Error: > 10 token ditolak; salah satu token stale/dipindah/di-list terpisah → 
 | | Kondisi |
 |---|---|
 | **Pre** | Pemanggil = `sale.owner_id`; listing `ACTIVE` (INV-012) |
-| **Post (cancel)** | Entry `Sale` dihapus; `nft_revoke_token` (market sebagai approved account); NFT tetap di wallet; `market_delist` |
+| **Post (cancel)** | Entry `Sale` dihapus; market **tidak** mencabut approval (NEP-178 owner-only — `contracts/market.md` §2a); NFT tetap di wallet; `market_delist` |
 | **Post (update)** | `sale_conditions.price` diganti; `approval_id` tidak berubah; `market_update_price` |
 
 **Validasi per langkah**
