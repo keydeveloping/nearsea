@@ -33,6 +33,15 @@
   lengkap. **Belum di-deploy** ke testnet — deploy wajib tanya user dulu ([git-workflow.md](../docs/development/git-workflow.md) §3);
   karena itu item "kontrak ter-deploy" pada tiket slice `04` ditandai ⚠️ sebagian. Sisa slice M1:
   TASK-003 → 004 → 005 → 006, dan jalur FE 007 → 008.
+- **Status TASK-003 (2026-10-08, ronde 21): ✅ `done` (kode).** Royalti NEP-199:
+  `nft_transfer_payout` (transfer + payout dalam satu panggilan, 1 yocto, `max_len_payout` dihormati)
+  + helper murni `royalty_amount = floor(balance × bps / 10_000)` dengan `checked_mul`. Payout dari
+  konfigurasi royalti **level kontrak**, satu penerima (`creator_id`), selalu ≤10% (INV-027). Bukti:
+  **45 test** workspace (11 baru — dust `19` → `0` / `20` → `1` yocto di 500 bps, tepat 10% di cap,
+  matriks 4 rate × 6 basis, wajib 1 yocto, penolakan pengirim tanpa approval, approval invalid setelah
+  transfer/INV-011), `fmt`/`clippy -D warnings` bersih, wasm 272 KB (ABI memuat `nft_transfer_payout`).
+  **Belum diklaim**: angka gas 15 Tgas + TC-003 versi sandbox (sisi market validasi payout & refund) —
+  keduanya butuh suite dua-kontrak TASK-006. Sisa slice M1: TASK-004 → 005 → 006, dan jalur FE 007 → 008.
 
 ## M1+ — MVP completion (lanjutan eksplisit, bukan dibuang)
 

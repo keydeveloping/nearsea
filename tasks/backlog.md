@@ -32,7 +32,7 @@ Milestone: M0 | M1 | M2 | M3 | M4
 |---|---|---|---|---|---|---|---|---|---|
 | TASK-001 | Scaffold workspace repo (contract/market/factory/frontend) + CI gates + SEC-* P0 | infra | P0 | — | implementation-plan | done | 3 | CI + Security hijau di `dev`; semua manifest & workflow ada | M0 |
 | TASK-002 | Kontrak NFT: NEP-171/177/178/181/297 + mint + events (near-sdk-contract-tools) + **`set_phases` minimal (satu fase publik)** — wajib agar `nft_mint` bisa dipanggil (mint = launchpad-aware, INV-017) | contract | P0 | 001 | features/marketplace + contracts/nft-collection.md | done | 4 | `cargo test` hijau; mint + transfer + events lolos TC-001 | M1 |
-| TASK-003 | Kontrak NFT: royalty NEP-199 (cap 10%) | contract | P0 | 002 | features/marketplace | todo | 1 | Payout royalti ≤10% teruji (INV-003/027) | M1 |
+| TASK-003 | Kontrak NFT: royalty NEP-199 (cap 10%) | contract | P0 | 002 | features/marketplace | done | 1 | Payout royalti ≤10% teruji (INV-003/027) | M1 |
 | TASK-004 | Kontrak market: storage NEP-145 + listing 2-tx + dual verification | contract | P0 | 002 | features/marketplace | todo | 4 | List/cancel + storage deposit lolos (INV-020, TC-002) | M1 |
 | TASK-005 | Kontrak market: buy + nft_transfer_payout + resolve/refund (+ private listing & bundle — dgn TASK-010) | contract | P0 | 004 | features/marketplace.md + payments.md | todo | 5 | Buy sukses + refund + race 20 pembeli lolos (INV-001/016, TC-003/016) | M1 |
 | TASK-006 | Sandbox tests 2-kontrak **subset slice**: mint->list->buy->refund + race (TC-001/002/013/016/017/020/022/044/047/048) + INV slice (001..016, 023, 030, 031) | contract | P0 | 002-005 | testing/test-cases.md (Slice M1) | todo | 4 | Suite sandbox hijau; semua INV **slice** punya test (INV M1+ di-defer eksplisit) | M1 |
@@ -95,6 +95,18 @@ Milestone: M0 | M1 | M2 | M3 | M4
 > sah di `testnet`/`mainnet` setelah PR promosi, dan merge ke sana **wajib tanya user** (`git-workflow.md`
 > §3/§12). Verifikasi reproducible + ABI juga butuh Docker/Linux → dijalankan CI, bukan lokal Windows
 > (`ci-cd.md` §14). Rilis pertama yang disiapkan: `contract-v0.1.0` (prosedur + rollback di `CHANGELOG.md`).
+
+> **TASK-003 `done` (ronde 21):** royalti NEP-199 di `contract/src/lib.rs` — `nft_transfer_payout`
+> (transfer + payout dalam satu panggilan, `assert_one_yocto`, `max_len_payout` dihormati) + helper murni
+> `royalty_amount(balance, bps) = floor(balance × bps / 10_000)` dengan `checked_mul`. Payout diturunkan
+> dari konfigurasi royalti **level kontrak** (bukan `TokenMetadata.extra`), satu penerima (`creator_id`).
+> **Bukti**: 11 test baru (45 test workspace) — perpindahan kepemilikan, ≤10% untuk 4 rate × 6 basis,
+> dust (`19` → `0`, `20` → `1` yocto di 500 bps), tepat 10% di cap, wajib 1 yocto, penolakan pengirim
+> tanpa approval, token tidak ada, `max_len_payout` terlalu kecil, approval invalid setelah transfer
+> (INV-011). Gate lokal hijau: `fmt --check`, `clippy -D warnings` (0 warning), `test --workspace`,
+> build wasm 272 KB (ABI memuat `nft_transfer_payout`). **Belum diklaim**: angka gas 15 Tgas dan
+> TC-003 versi sandbox — keduanya butuh suite dua-kontrak milik TASK-006; sisi **market** validasi
+> payout (≥1 penerima, Σ ≤ harga−fee, sisa ≤1 yocto, refund) juga di sana.
 
 > **TASK-035 (dibuat ronde 18, TASK-001):** `braces <=3.0.3` (high, ReDoS) masuk lewat
 > `eslint-config-next → @next/eslint-plugin-next → fast-glob → micromatch`. Versi terbaru `braces` = 3.0.3
