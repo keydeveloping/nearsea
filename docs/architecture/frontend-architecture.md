@@ -229,17 +229,23 @@ i18n/                       (kunci copy EN)
 |---|---|---|---|
 | `NEAR_NETWORK` | `NEXT_PUBLIC_` | testnet/mainnet | Banner network permanen |
 | `NEAR_RPC_URL` + fallbacks | `NEXT_PUBLIC_` | daftar provider | Urutan failover |
-| `MARKET_CONTRACT_ID`, `FACTORY_CONTRACT_ID` | `NEXT_PUBLIC_` | alamat kontrak | — |
+| `MARKET_CONTRACT_ID` | `NEXT_PUBLIC_` | alamat kontrak market | Browse/list/buy (TASK-008) |
+| `FACTORY_CONTRACT_ID` | `NEXT_PUBLIC_` | alamat kontrak factory | fase launchpad |
 | base API report | — | same-origin `/api/*` (default) | `API_BASE_URL` **PROPOSED** hanya bila API dipisah origin |
 | `IPFS_GATEWAY` | `NEXT_PUBLIC_` | gateway allowlist | fase lanjut |
 | `JWT_SECRET`, `DATABASE_URL` | **tanpa** prefix | — | **DILARANG** di bundle FE |
 
 - **Nama literal yang dibaca kode** (TASK-007): `NEXT_PUBLIC_NEAR_NETWORK`,
   `NEXT_PUBLIC_NEAR_RPC_URL`, `NEXT_PUBLIC_NEAR_RPC_FALLBACKS` — modul `lib/near/network.ts`.
+  (TASK-008) `NEXT_PUBLIC_MARKET_CONTRACT_ID` — modul `lib/near/contracts.ts`. Kontrak **koleksi NFT**
+  tidak punya var global: ia bagian dari route `/token/[contract]/[tokenId]` dan sudah tercatat di
+  setiap baris listing, jadi tidak ada alamat kedua yang bisa menyimpang dari data on-chain.
   `.env.example` memuat keduanya (tanpa & dengan prefix) agar tidak ada nilai yang diam-diam
   berbeda antara proses server dan bundle browser.
 - Nilai `NEAR_NETWORK` di luar `testnet`/`mainnet` = **gagal saat start**, bukan fallback
-  diam-diam ke testnet: salah jaringan = transaksi di jaringan yang salah.
+  diam-diam ke testnet: salah jaringan = transaksi di jaringan yang salah. `NEXT_PUBLIC_MARKET_CONTRACT_ID`
+  yang kosong **tidak** menggagalkan start: UI menampilkan keadaan "belum dikonfigurasi" supaya build
+  & halaman baca tetap jalan sebelum deploy.
 
 ## 8. Pendekatan testing frontend
 

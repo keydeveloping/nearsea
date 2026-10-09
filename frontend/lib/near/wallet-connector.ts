@@ -1,6 +1,6 @@
-import type { NearConnectorOptions } from "@hot-labs/near-connect";
-
 import { NEAR_NETWORK, configuredRpcUrls } from "./network";
+
+import type { NearConnectorOptions } from "@hot-labs/near-connect";
 
 /**
  * Konfigurasi wallet connector dari env. **Tidak ada daftar wallet di sini**:

@@ -19,6 +19,19 @@ export type WalletStatus =
  */
 export type AccountStatus = "unknown" | "ready" | "not_found" | "unreachable";
 
+/** Argumen view call baca-saja (`nft_token`, `get_sales`, `royalty_config`, …). */
+export interface ViewCallParams {
+  contractId: string;
+  method: string;
+  args?: Record<string, unknown>;
+}
+
+/** Argumen transaksi tulis. `gas` dan `deposit` selalu **string** (gas / yoctoNEAR). */
+export interface FunctionCallParams extends ViewCallParams {
+  gas?: string;
+  deposit?: string;
+}
+
 /** Bentuk state wallet yang dikonsumsi UI — satu tipe, bukan beberapa boolean lepas. */
 export interface WalletApi {
   status: WalletStatus;
@@ -38,4 +51,15 @@ export interface WalletApi {
   disconnect: () => Promise<void>;
   /** Mengulang aksi terakhir yang gagal — bukan selalu connect (mis. disconnect yang gagal). */
   retry: () => Promise<void>;
+  /**
+   * View call baca-saja lewat provider RPC jaringan terkonfigurasi (tanpa tanda tangan).
+   * Dipakai untuk membaca listing & metadata; TASK-008 **wajib** memakai jalur ini untuk
+   * re-verify sebelum signing, bukan cache (SEC-ORDER-003).
+   */
+  viewFunction: (params: ViewCallParams) => Promise<unknown>;
+  /**
+   * Mengirim transaksi tulis dan menunggu receipt final. Nilai kembaliannya adalah hasil
+   * method (JSON) setelah transaksi final — bukan promise receipt mentah.
+   */
+  callFunction: (params: FunctionCallParams) => Promise<unknown>;
 }

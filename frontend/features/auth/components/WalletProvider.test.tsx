@@ -1,14 +1,16 @@
 // TC-040 · AC-WALLET-1, AC-WALLET-2, AC-WALLET-4
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import Home from "@/app/page";
 import { t } from "@/i18n";
 
-import { AppHeader } from "./AppHeader";
-import { WalletProvider } from "./WalletProvider";
 import { useWallet } from "../hooks/useWallet";
 import { nearDouble } from "../near-connect.double";
+
+import { AppHeader } from "./AppHeader";
+import { WalletProvider } from "./WalletProvider";
 
 vi.mock("near-connect-hooks", async () => {
   const double = await import("../near-connect.double");
@@ -31,17 +33,32 @@ function WalletProbe() {
   );
 }
 
+/**
+ * Halaman beranda kini halaman Explore marketplace (tiket 10), jadi ia butuh provider
+ * server-state juga — bukan lagi halaman scaffold statis.
+ */
 function renderApp() {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
   return render(
-    <WalletProvider>
-      <WalletProbe />
-      <AppHeader />
-      <Home />
-    </WalletProvider>,
+    <QueryClientProvider client={queryClient}>
+      <WalletProvider>
+        <WalletProbe />
+        <AppHeader />
+        <Home />
+      </WalletProvider>
+    </QueryClientProvider>,
   );
 }
 
 const read = (testId: string) => screen.getByTestId(testId).textContent;
+
+/**
+ * Header app. Query yang mencari `status`/`alert`/`Retry` dipersempit ke sini: halaman
+ * Explore punya keadaan loading & error sendiri dengan peran ARIA yang sama, dan test ini
+ * menguji kontrol wallet — bukan halaman marketplace.
+ */
+const header = () => within(screen.getByRole("banner"));
 
 beforeEach(() => nearDouble.reset());
 
@@ -78,7 +95,7 @@ describe("wallet state derivation", () => {
 
     await waitFor(() => expect(read("accountStatus")).toBe("not_found"));
     expect(read("txDisabled")).toBe("true");
-    expect(screen.getByRole("status").textContent).toContain("Account not found on testnet.");
+    expect(header().getByRole("status").textContent).toContain("Account not found on testnet.");
   });
 
   it("keeps transactions disabled but does not claim a mismatch when the probe fails otherwise", async () => {
@@ -91,7 +108,7 @@ describe("wallet state derivation", () => {
 
     await waitFor(() => expect(read("accountStatus")).toBe("unreachable"));
     expect(read("txDisabled")).toBe("true");
-    expect(screen.getByRole("status").textContent).toBe("Network: testnet");
+    expect(header().getByRole("status").textContent).toBe("Network: testnet");
   });
 
   it("reports the action that failed so Retry repeats it, not connect", async () => {
@@ -108,7 +125,7 @@ describe("wallet state derivation", () => {
     expect(read("status")).toBe("connected");
     expect(nearDouble.signIn).toHaveBeenCalledTimes(1);
 
-    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    fireEvent.click(header().getByRole("button", { name: "Retry" }));
 
     await waitFor(() => expect(nearDouble.signOut).toHaveBeenCalledTimes(2));
     // Retry mengulang disconnect — bukan menambah pemanggilan connect.
@@ -123,7 +140,9 @@ describe("wallet state derivation", () => {
 
     await waitFor(() => expect(read("errorCode")).toBe("rejected"));
     expect(read("status")).toBe("error");
-    expect(screen.getByRole("alert").textContent).toContain("Connection cancelled in your wallet.");
+    expect(header().getByRole("alert").textContent).toContain(
+      "Connection cancelled in your wallet.",
+    );
   });
 
   it("returns to disconnected after a successful sign-out", async () => {
@@ -144,7 +163,7 @@ describe("app without a wallet (read-only mode)", () => {
   it("renders the page content and a usable Connect button", async () => {
     renderApp();
 
-    expect(screen.getByRole("heading", { name: "NearSea" })).toBeDefined();
+    expect(screen.getByRole("heading", { name: t("marketplace.grid.title") })).toBeDefined();
     expect(screen.getByText(t("auth.readOnlyNotice"))).toBeDefined();
 
     const connect = await screen.findByRole("button", { name: "Connect Wallet" });
@@ -154,6 +173,6 @@ describe("app without a wallet (read-only mode)", () => {
   it("keeps the network indicator visible before any wallet exists", async () => {
     renderApp();
 
-    expect(screen.getByRole("status").textContent).toBe("Network: testnet");
+    expect(header().getByRole("status").textContent).toBe("Network: testnet");
   });
 });

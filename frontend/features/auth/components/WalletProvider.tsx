@@ -3,21 +3,28 @@
 import { NearProvider, useNearWallet } from "near-connect-hooks";
 import {
   createContext,
+  useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   useSyncExternalStore,
   type ReactNode,
 } from "react";
 
 import { buildConnectorConfig } from "@/lib/near/wallet-connector";
-import type { WalletConnectErrorCode } from "@/lib/near/wallet-errors";
 
 import { useAccountProbe } from "../hooks/useAccountProbe";
 import { useWalletActions, type WalletAction } from "../hooks/useWalletActions";
 import { buildWalletApi } from "../wallet-api";
 
-import type { WalletApi, WalletStatus } from "../types/wallet.types";
+import type {
+  FunctionCallParams,
+  ViewCallParams,
+  WalletApi,
+  WalletStatus,
+} from "../types/wallet.types";
+import type { WalletConnectErrorCode } from "@/lib/near/wallet-errors";
 
 /** State pra-hidrasi: belum ada wallet, belum ada yang bisa diklik. */
 export const IDLE_WALLET_API: WalletApi = buildWalletApi({
@@ -61,9 +68,30 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
 /** Komponen tanpa tampilan: menerjemahkan API near-connect menjadi `WalletApi`. */
 function WalletBridge({ onApi }: { onApi: (api: WalletApi) => void }) {
-  const { signedAccountId, loading, network, getBalance, signIn, signOut } = useNearWallet();
+  const {
+    signedAccountId,
+    loading,
+    network,
+    getBalance,
+    signIn,
+    signOut,
+    viewFunction,
+    callFunction,
+  } = useNearWallet();
   const probe = useAccountProbe(signedAccountId, getBalance);
   const actions = useWalletActions(signIn, signOut);
+
+  // near-connect membuat ulang kedua fungsi ini tiap render. Dibungkus dengan identitas stabil
+  // supaya `api` tidak berubah tiap render (pola yang sama dengan `getBalance` di useAccountProbe).
+  const viewRef = useRef(viewFunction);
+  const callRef = useRef(callFunction);
+  useEffect(() => {
+    viewRef.current = viewFunction;
+    callRef.current = callFunction;
+  });
+
+  const view = useCallback((params: ViewCallParams) => viewRef.current(params), []);
+  const call = useCallback((params: FunctionCallParams) => callRef.current(params), []);
 
   const api = useMemo<WalletApi>(
     () => ({
@@ -78,8 +106,10 @@ function WalletBridge({ onApi }: { onApi: (api: WalletApi) => void }) {
       connect: actions.connect,
       disconnect: actions.disconnect,
       retry: actions.retry,
+      viewFunction: view,
+      callFunction: call,
     }),
-    [actions, signedAccountId, loading, network, probe],
+    [actions, signedAccountId, loading, network, probe, view, call],
   );
 
   useEffect(() => onApi(api), [api, onApi]);

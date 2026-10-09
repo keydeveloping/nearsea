@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@hot-labs/near-connect": "0.11.4",
+    "@tanstack/react-query": "5.104.1",
     "near-connect-hooks": "1.1.6",
     "next": "16.4.0",
     "react": "19.3.0",

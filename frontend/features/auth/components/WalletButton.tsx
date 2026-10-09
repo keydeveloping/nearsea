@@ -2,9 +2,9 @@
 
 import { format, t } from "@/i18n";
 import { formatNear } from "@/lib/format/money";
-import type { WalletConnectErrorCode } from "@/lib/near/wallet-errors";
 
 import type { WalletApi } from "../types/wallet.types";
+import type { WalletConnectErrorCode } from "@/lib/near/wallet-errors";
 
 type ErrorMessageKey =
   "auth.error.rejected" | "auth.error.wallet_unavailable" | "auth.error.connect_failed";

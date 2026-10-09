@@ -1,7 +1,19 @@
 import auth from "./en/auth.json";
 import common from "./en/common.json";
+import errorsCatalog from "./en/errors.json";
+import marketplace from "./en/marketplace.json";
 
-const messages = { auth, common } as const;
+/**
+ * `errors.json` menyimpan katalognya di dalam pembungkus `errors` (bentuk yang ditetapkan
+ * docs/development/error-handling.md §8), jadi yang didaftarkan adalah isinya — supaya kuncinya
+ * tetap `errors.<CODE>` dan bukan `errors.errors.<CODE>`.
+ */
+const messages = {
+  auth,
+  common,
+  marketplace,
+  errors: errorsCatalog.errors,
+} as const;
 
 /** Semua jalur kunci bertitik, dihitung dari bentuk pesan (kunci salah = error build). */
 type DottedPaths<T, Prefix extends string = ""> = {

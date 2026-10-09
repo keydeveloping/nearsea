@@ -146,24 +146,54 @@ Kebijakan lengkap: [docs/development/versioning-and-release.md](./docs/developme
   (`formatNear`/`YoctoNear` — aritmetika BigInt, tanpa float). Copy UI lewat `i18n/en/auth.json`.
 - **Tes komponen (RTL)** — `@testing-library/react` + `@testing-library/dom` (devDependency) +
   `vitest.setup.ts` (cleanup RTL); suite FE **52 test**.
+- **Marketplace UI: browse / list / buy (TASK-008, 2026-10-09)** — `frontend/features/marketplace/`:
+  grid Explore (`ListingGrid`/`ListingCard` + `useListings`) membaca `get_sales` langsung lewat view
+  call RPC; halaman `/token/[contract]/[tokenId]` (`TokenPage` + `useTokenDetail`) menampilkan
+  metadata, harga, status listing, dan aksi sesuai peran (`TokenActions`: owner → Sell, non-owner →
+  Buy); modal listing **dua langkah tanda tangan** (`nft_approve` "Step 1 of 2" → `list_nft_for_sale`
+  "Step 2 of 2", `approval_id` konkret dari `nft_token`, deposit storage NEP-145 ditampilkan sebelum
+  signing); modal beli dengan **breakdown fee + royalti** sebelum konfirmasi dan **re-verify sebelum
+  signing** (SEC-ORDER-003). Modul pendukung: `lib/format/fees.ts` (breakdown BigInt, `percentFromBps`),
+  `lib/format/storage.ts` (kekurangan deposit NEP-145), `lib/format/media.ts` (media hanya `https:`),
+  `lib/errors/market-errors.ts` (panic kontrak → kode registry), `lib/near/contracts.ts` (alamat market
+  dari env), `lib/constants/near-gas.ts`, `components/ui/Modal.tsx` (focus trap + fokus kembali ke
+  pemicu). Namespace i18n baru `marketplace` + `errors` (katalog penuh `error-handling.md` §8).
+  `WalletApi` diperluas dengan `viewFunction`/`callFunction`; wallet disuntikkan ke fitur lewat
+  interface sempit `MarketChain` (`app/MarketChainProvider.tsx`) agar fitur tidak saling impor.
+- **Tes marketplace** — suite FE **127 test** (16 file), termasuk 20 test jalur emas
+  browse→list→buy terhadap chain palsu.
 ### Changed
 - `frontend/tsconfig.json`: `target` **ES2017 → ES2020** (literal `BigInt` wajib untuk aritmetika
   yoctoNEAR).
 - `frontend/i18n/index.ts`: lookup kunci diperluas ke **kedalaman bebas** (`auth.error.rejected`),
-  sebelumnya hanya dua segmen — konvensi `code-standards.md` §10 memakai tiga segmen.
+  sebelumnya hanya dua segmen — konvensi `code-standards.md` §10 memakai tiga segmen; namespace
+  `errors` didaftarkan dari isi `errors.json` (bukan pembungkusnya) supaya kuncinya tetap
+  `errors.<CODE>`.
 - `frontend/package.json`: `@hot-labs/near-connect` dan `near-connect-hooks` di-pin **exact**
   (`frontend-security.md` §9 — dependensi kritis); `near-api-js` dihapus dari `dependencies`
-  (dipakai sebagai dependency transitif, tidak pernah diimpor langsung).
+  (dipakai sebagai dependency transitif, tidak pernah diimpor langsung); `@tanstack/react-query`
+  5.104.1 ditambahkan (server state — `frontend-architecture.md` §Data fetching).
 - `.env.example` + `docs/deployment/environments.md` + `docs/architecture/frontend-architecture.md` §7:
   frontend membaca `NEXT_PUBLIC_NEAR_NETWORK`/`NEXT_PUBLIC_NEAR_RPC_URL`/`NEXT_PUBLIC_NEAR_RPC_FALLBACKS`
-  (Next.js hanya mengekspos prefix `NEXT_PUBLIC_`); template memuat keduanya agar tidak ada nilai berbeda
-  antara proses server dan browser.
+  (Next.js hanya mengekspos prefix `NEXT_PUBLIC_`) dan `NEXT_PUBLIC_MARKET_CONTRACT_ID`; template memuat
+  keduanya agar tidak ada nilai berbeda antara proses server dan browser.
+- **Lint FE diperketat (TASK-038, 2026-10-09)** — `frontend/eslint.config.mjs` kini juga mengaktifkan
+  `import/order` (grup `code-standards.md` §5: `type` di akhir, satu baris kosong antar grup, alfabetis;
+  plus `settings["import/internal-regex"] = "^@/"` supaya alias repo tidak terbaca sebagai paket
+  eksternal), `react/jsx-no-useless-fragment`, dan `no-restricted-imports` per-`files` yang menegakkan
+  tabel batas dependensi `frontend-architecture.md` §1. **Tanpa dependency baru** — `eslint-config-next`
+  sudah membawa `eslint-plugin-import` + `eslint-plugin-react`; dugaan lama "butuh plugin tambahan" tidak
+  benar. Konsekuensinya 30 file dirapikan **urutan import-nya saja** (auto-fix, tanpa perubahan perilaku).
 ### Security
 - Tidak ada private key/seed/kredensial di source maupun bundle FE (diverifikasi: `grep` `.next/static`
-  + `.next/server` bersih). **Temuan terbuka**: `function-call-key-plugin` (dependency transitif
-  `near-connect-hooks`) menyimpan private key function-call di `localStorage`; jalurnya **tidak aktif** di
-  NearSea (tidak pernah `signIn({ addFunctionCallKey })`) dan kodenya ter-tree-shake dari bundle →
-  ditinjau sebagai **TASK-037**.
+  + `.next/server` bersih). **Koreksi (ronde 26)**: klaim bahwa kode `function-call-key-plugin`
+  ter-tree-shake dari bundle **tidak benar** — `createLocalKeyFor`/`access_key::plugin`/`ed25519:` tetap
+  ada di chunk klien, diverifikasi pada build `c7e081b` **dan** build sesudahnya. Jalurnya tetap tidak
+  aktif (tidak ada pemanggil `addFunctionCallKey`), tetapi **TASK-037** tidak boleh ditutup dengan
+  alasan tree-shaking.
+- Media metadata (konten pihak ketiga) hanya dirender lewat `<img>` dan hanya untuk URL **https:**
+  (`lib/format/media.ts`); `data:`/`javascript:`/`blob:` ditolak. Tidak ada `dangerouslySetInnerHTML`
+  di repo; judul/deskripsi dirender sebagai teks React.
 
 ### Indexer (fase 2 — Neardata)
 ### Added

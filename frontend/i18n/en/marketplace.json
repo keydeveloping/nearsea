@@ -1,0 +1,66 @@
+{
+  "grid": {
+    "title": "Explore",
+    "loading": "Loading listings…",
+    "empty": "No items found",
+    "error": "Something went wrong",
+    "retry": "Retry"
+  },
+  "detail": {
+    "back": "Back to explore",
+    "collection": "Collection",
+    "owner": "Owner",
+    "status": "Status",
+    "price": "Price",
+    "listed": "Listed for sale",
+    "notListed": "Not listed",
+    "youOwn": "You own this item",
+    "loading": "Loading item…",
+    "notFound": "This item no longer exists",
+    "mediaAlt": "Artwork for {name}"
+  },
+  "list": {
+    "button": "Sell",
+    "title": "Sell your item",
+    "priceLabel": "Price (Ⓝ)",
+    "priceMin": "Minimum price is 0.01 Ⓝ",
+    "priceInvalid": "Enter a valid amount",
+    "privateToggle": "Private listing",
+    "allowedBuyerLabel": "Allowed buyer",
+    "allowedBuyerInvalid": "Enter a valid account ID",
+    "storageNote": "Marketplace storage deposit: {amount} Ⓝ (paid by you, refundable)",
+    "submit": "Continue",
+    "step1": "Step 1 of 2: Approve the marketplace",
+    "step2": "Step 2 of 2: Confirm the listing",
+    "success": "Your item is listed"
+  },
+  "buy": {
+    "button": "Buy now",
+    "title": "Confirm purchase",
+    "fee": "Platform fee ({percent}%)",
+    "royalty": "Creator royalty",
+    "royaltyUnavailable": "Royalty estimate unavailable",
+    "sellerReceives": "Seller receives",
+    "total": "Total",
+    "estimateNote": "The royalty is an estimate. The final split is settled on-chain.",
+    "verifying": "Checking the latest price…",
+    "pending": "Waiting for confirmation…",
+    "success": "Purchase complete",
+    "confirm": "Confirm and pay"
+  },
+  "stale": {
+    "badge": "No longer available",
+    "notice": "This listing is no longer valid"
+  },
+  "tx": {
+    "cancelled": "Transaction cancelled in your wallet.",
+    "cancel": "Cancel",
+    "close": "Close",
+    "dismiss": "Dismiss",
+    "retry": "Retry"
+  },
+  "config": {
+    "title": "Marketplace not configured",
+    "body": "Set NEXT_PUBLIC_MARKET_CONTRACT_ID to a deployed market contract to browse listings."
+  }
+}

@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import type { YoctoNear } from "@/lib/format/money";
 import {
   classifyAccountProbe,
   classifyAccountProbeError,
@@ -10,6 +9,7 @@ import {
 } from "@/lib/near/wallet-errors";
 
 import type { AccountStatus } from "../types/wallet.types";
+import type { YoctoNear } from "@/lib/format/money";
 
 interface AccountProbe {
   status: AccountStatus;
