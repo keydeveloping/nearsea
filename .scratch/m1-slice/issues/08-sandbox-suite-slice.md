@@ -18,12 +18,22 @@
 - [x] Suite berjalan di CI dan **hijau** (bukan hanya hijau di lokal).
 
 **Done-when (TASK-006):** Suite sandbox hijau; semua INV **slice** punya test (INV M1+ di-defer eksplisit).
-→ **17 test sandbox hijau** di `market/tests/slice_sandbox.rs` (+ harness `market/tests/common/mod.rs`);
-`cargo test --workspace` = **133 test** (73 market unit + 17 sandbox + 42 koleksi + 1 factory);
+→ **18 test sandbox hijau** di `market/tests/slice_sandbox.rs` (+ harness `market/tests/common/mod.rs`);
+`cargo test --workspace` = **134 test** (73 market unit + 18 sandbox + 42 koleksi + 1 factory);
 `fmt --check` + `clippy -D warnings` bersih; 3 wasm ter-build.
+> **Koreksi (ronde 28):** catatan ronde 24 menulis "17 test sandbox / 133 test". Hitungan CI
+> sungguhan adalah **18 / 134** — jumlah `#[tokio::test]` di `slice_sandbox.rs` memang 18, dan
+> run CI menjalankan ke-18-nya. Angka lama keliru satu, bukan test yang hilang.
+
+**Bukti CI (ronde 28):** AC "Suite berjalan di CI dan hijau" baru terverifikasi nyata di
+[CI run 37895683629](https://github.com/keydeveloping/nearsea/actions/runs/37895683629) (PR #14,
+`ubuntu-latest`), step `Unit + sandbox tests (near-workspaces)` **success**:
+`test result: ok. 18 passed; 0 failed … finished in 221.50s` untuk `tests/slice_sandbox.rs`,
+plus 73 (market unit), 42 (koleksi), 1 (factory). Sebelum ini AC tersebut hanya **diasersikan**:
+branch-nya belum pernah di-push, jadi CI belum pernah menjalankannya.
 
 **Bukti & catatan implementasi (ronde 24):**
-- **Lokasi**: `market/tests/slice_sandbox.rs` (17 test) + `market/tests/common/mod.rs` (harness: deploy
+- **Lokasi**: `market/tests/slice_sandbox.rs` (18 test) + `market/tests/common/mod.rs` (harness: deploy
   dua wasm nyata, mint/list/buy, baca saldo & event). Wasm dibaca dari `target/near/<crate>/<crate>.wasm`
   — artefak `cargo near build` yang sama dipakai gate CI, jadi CI **membangun wasm sebelum test**.
 - **Sandbox hanya jalan di Linux/macOS** (binary nearcore tidak dipublikasikan untuk Windows). Harness
