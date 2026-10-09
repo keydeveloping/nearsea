@@ -3,9 +3,20 @@ name = "nearsea-factory"
 version = "0.1.0"
 edition = "2021"
 publish = false
+# `repository` mengisi field `link` NEP-330 (SEC-CONTRACT-006); versi NEP-330 diambil
+# dari `version` di atas — tag `contract-vX.Y.Z` wajib cocok (versioning-and-release.md §14).
+repository = "https://github.com/keydeveloping/nearsea"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
+
+# Lingkungan build reproducible (NEP-330) — dipakai `cargo near build reproducible-wasm`.
+# Image di-pin by digest: toolchain rilis = isi container, bukan rust-toolchain.toml lokal.
+[package.metadata.near.reproducible_build]
+image = "sourcescan/cargo-near:0.21.1-rust-1.96.0"
+image_digest = "sha256:ccb22bb4e677ed022d8b9d1aa1b32f0af52dd0471ef1c32e48dedbf68ee6ee17"
+passed_env = []
+container_build_command = ["cargo", "near", "build", "non-reproducible-wasm", "--locked"]
 
 [dependencies]
 near-sdk = { workspace = true }

@@ -12,7 +12,8 @@
 - Semua dokumen inti terisi (hasil tanya-jawab + audit), stack final, repo scaffold.
 - Done when: agent bisa mulai koding tanpa bertanya arah.
 - **Status TASK-001 (2026-10-07): ✅ `done`.** Workspace + manifest + workflow ada dan gate hijau di dua tempat: lokal (fmt/clippy/test kontrak; lint/format/typecheck/test/build FE) **dan** CI GitHub di branch `dev` (PR #1, commit `223015b` — run CI + Security `success`). Repo remote: `github.com/keydeveloping/nearsea`.
-- **Status TASK-031 (2026-10-07, ronde 18c): ✅ `done`.** Model 3 branch ditegakkan platform: proteksi aktif di `dev`/`testnet`/`mainnet` (PR wajib, force-push & delete diblokir termasuk admin, 5 required status checks, conversation resolution) + ruleset tag protection. Bukti: push langsung ke `dev` ditolak GitHub. **M0 tertutup.** Catatan terbuka: required approval ditunda (repo satu akun) — dinaikkan saat maintainer kedua ada.
+- **Status TASK-031 (2026-10-07, ronde 18c): ✅ `done`.** Model 3 branch ditegakkan platform: proteksi aktif di `dev`/`testnet`/`mainnet` (PR wajib, force-push & delete diblokir termasuk admin, 5 required status checks, conversation resolution) + ruleset tag protection. Bukti: push langsung ke `dev` ditolak GitHub. Catatan terbuka: required approval ditunda (repo satu akun) — dinaikkan saat maintainer kedua ada.
+- **Status TASK-032 (2026-10-07, ronde 20): ✅ `done` (mekanisme).** Versi artefak kini tertanam di build dan dibaca dari luar (NEP-330) untuk ketiga crate; `release.yml` menegakkan **versi manifest == tag** + membuktikan metadata tertanam == tag + melampirkan artifact ke GitHub Release; `ci.yml` membangun ABI + memverifikasi metadata tiap PR. Bukti lokal: metadata ketiga wasm memuat `version=0.1.0` + `link=https://github.com/keydeveloping/nearsea`; gate fmt/clippy/test hijau. **Catatan terbuka (bukan blocker M0):** **tag pertama belum dibuat** — tag sah hanya di `testnet`/`mainnet` setelah PR promosi, dan itu **wajib persetujuan user** ([git-workflow.md](../docs/development/git-workflow.md) §3/§12). Rilis pertama yang disiapkan: `contract-v0.1.0`. **M0 tertutup.**
 
 ## M1 — Vertical slice: mint → list → buy (testnet) ⭐ **milestone pertama yang wajib**
 
@@ -32,6 +33,25 @@
   lengkap. **Belum di-deploy** ke testnet — deploy wajib tanya user dulu ([git-workflow.md](../docs/development/git-workflow.md) §3);
   karena itu item "kontrak ter-deploy" pada tiket slice `04` ditandai ⚠️ sebagian. Sisa slice M1:
   TASK-003 → 004 → 005 → 006, dan jalur FE 007 → 008.
+- **Status TASK-003 (2026-10-08, ronde 21): ✅ `done` (kode).** Royalti NEP-199:
+  `nft_transfer_payout` (transfer + payout dalam satu panggilan, 1 yocto, `max_len_payout` dihormati)
+  + helper murni `royalty_amount = floor(balance × bps / 10_000)` dengan `checked_mul`. Payout dari
+  konfigurasi royalti **level kontrak**, satu penerima (`creator_id`), selalu ≤10% (INV-027). Bukti:
+  **45 test** workspace (11 baru — dust `19` → `0` / `20` → `1` yocto di 500 bps, tepat 10% di cap,
+  matriks 4 rate × 6 basis, wajib 1 yocto, penolakan pengirim tanpa approval, approval invalid setelah
+  transfer/INV-011), `fmt`/`clippy -D warnings` bersih, wasm 272 KB (ABI memuat `nft_transfer_payout`).
+  **Belum diklaim**: angka gas 15 Tgas + TC-003 versi sandbox (sisi market validasi payout & refund) —
+  keduanya butuh suite dua-kontrak TASK-006. Sisa slice M1: TASK-004 → 005 → 006, dan jalur FE 007 → 008.
+- **Status TASK-004 (2026-10-08, ronde 22): ✅ `done` (kode).** Jalur listing market di `market/src/lib.rs`:
+  `list_nft_for_sale` 2-tx non-custodial + callback `process_listing` `#[private]` yang memverifikasi
+  sendiri lewat dua view XCC (kepemilikan **dan** approval — SEC-ORDER-004, ADR-002), `remove_sale`,
+  `update_price`, view listing, storage NEP-145 (bounds `min = storage_per_sale()`), Pausable (INV-022),
+  dan tiga event kanonik. Bukti: **75 test** workspace (32 baru) — non-custodial dibuktikan dengan membaca
+  receipt (hanya 2 view + callback; tidak ada `nft_transfer*`); `fmt`/`clippy -D warnings` bersih; wasm
+  197 KB. **Koreksi dokumen**: `nft_revoke_token` tidak ada di NEP-178 → `remove_sale` tidak mencabut
+  approval ([contracts/market.md](../docs/contracts/market.md) §2a). **Belum diklaim**: paruh buy TC-002,
+  race TC-016/017, TC-022, TC-048, angka gas penuh — butuh TASK-005/006. Sisa slice M1: TASK-005 → 006,
+  dan jalur FE 007 → 008.
 - **Status TASK-007 (2026-10-08, ronde 25): ✅ `done` (kode).** Wallet connect di
   `frontend/features/auth/` (`@hot-labs/near-connect` 0.11.4 + `near-connect-hooks` 1.1.6, di-pin
   exact): state app-wide via `WalletContext`/`useWallet()` dengan satu tipe `WalletApi`, header dengan
