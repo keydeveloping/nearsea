@@ -68,6 +68,23 @@ Milestone: M0 | M1 | M2 | M3 | M4
 | TASK-035 | Audit dependensi: tinjau ulang advisory tanpa patch yang di-*ignore* (`--ignore-unfixable`) | infra | P2 | 001 | development/ci-cd.md §3 | todo | 0.5 | Advisory yang di-ignore punya keputusan tercatat: diperbaiki, diganti, atau diterima + alasan | M1+ |
 | TASK-037 | Tinjau `function-call-key-plugin` (dependency transitif `near-connect-hooks`): menyimpan private key function-call di `localStorage` | security | P0 | 007 | security/key-management.md + features/auth.md | todo | 1 | Keputusan tercatat: jalur dinonaktifkan permanen (tanpa `addFunctionCallKey`), atau dependency diganti, atau diterima + alasan tertulis. **Kode plugin terbukti ADA di bundle klien (ronde 26) — bukan alasan tree-shaking** | M1+ |
 | TASK-038 | Aktifkan lint yang tertunda setelah struktur `features/` ada: `import/order`, `no-restricted-imports` (larangan impor lintas-fitur), `react/jsx-no-useless-fragment` | frontend | P2 | 007 | development/code-standards.md §9 | done | 0.5 | Ketiga aturan aktif di `eslint.config.mjs` dan gate FE tetap hijau | M1+ |
+| TASK-039 | Advisory **RUSTSEC-2026-0285** (`rustls 0.23.43`, TLS 1.3 handshake) — perbaikan `>=0.23.45` bentrok dengan pin `aws-lc-rs =1.16.2` dari `near-crypto` | security/infra | P0 (blok PR #14) | 006 | development/ci-cd.md §3 + security/security-requirements.md | todo | 1 | Keputusan tercatat: konflik bump dipecahkan (mis. bump `near-sdk`/`near-crypto`), ATAU advisory diterima + alasan tertulis di `audit.toml` (bukan di-ignore diam-diam) | M1 |
+
+> **TASK-039 (ronde 28, temuan saat mendaratkan tiket 07/08):** `cargo audit` di CI menemukan
+> **RUSTSEC-2026-0285** — `rustls 0.23.43` "TLS 1.3 handshake messages incorrectly accepted across
+> encryption level boundaries", perbaikan `>=0.23.45`. Advisory ini **baru terbit** di antara run CI
+> 06:48Z (hijau) dan 06:54Z (gagal) pada 2026-10-09, jadi bukan disebabkan perubahan proyek.
+> **Jangkauan terverifikasi**: `rustls` **hanya** terjangkau lewat
+> `nearsea-market → near-workspaces (dev-dependency) → near-sandbox → ureq → rustls`. Kontrak
+> produksi (`nearsea-nft-collection`, `nearsea-factory`) **tidak** menyentuhnya, dan `dev` sebelum
+> tiket 08 bahkan tidak punya `rustls` sama sekali — advisory ini muncul karena tiket 08 menambahkan
+> `near-workspaces`. **Kenapa belum diperbaiki**: `cargo update -p rustls --precise 0.23.45` gagal —
+> `rustls 0.23.45` menuntut `aws-lc-rs ^1.18`, sedangkan `near-crypto` (via `near-sdk` 5.29.1, jalur
+> produksi) mem-pin `aws-lc-rs = "=1.16.2"` **exact**. Rilis `near-crypto` stabil terbaru masih
+> `0.38.0-rc.3` (prerelease), jadi belum ada rilis stabil yang melonggarkan pin itu. Kebijakan repo
+> ([ci-cd.md](../docs/development/ci-cd.md) §3) melarang men-ignore advisory yang **punya** perbaikan,
+> jadi keputusan (pecahkan konflik bump vs terima dengan alasan tertulis) adalah milik user.
+> **Dampak**: PR #14 (tiket 07/08) terblokir check wajib `Dependency audit` sampai ini diputuskan.
 
 > **TASK-031 `done` (ronde 18c):** repo dijadikan **publik** oleh user → branch protection tersedia (sebelumnya 403 "butuh GitHub Pro" saat private). Proteksi **aktif** di `dev`/`testnet`/`mainnet`: PR wajib, force-push & delete diblokir **termasuk admin** (`enforce_admins`), 5 required status checks, conversation resolution; `strict` (branch up-to-date) di testnet/mainnet. Tag protection via ruleset `protect-release-tags` (`contract-v*`/`web-v*`/`indexer-v*`: delete + update diblokir). **Bukti**: push langsung ke `dev` ditolak GitHub — `GH006 Protected branch update failed … Changes must be made through a pull request. 5 of 5 required status checks are expected.`
 > **Required approval = 0 (ditunda, keputusan user ronde 18c):** repo hanya punya satu akun dan GitHub melarang self-approve, jadi approval 2/1 akan mengunci semua PR. Naikkan ke `testnet`=1 / `mainnet`=2 saat ada maintainer kedua ([git-workflow.md](../docs/development/git-workflow.md) §16). `require_code_owner_reviews` juga ditunda karena alasan yang sama.
