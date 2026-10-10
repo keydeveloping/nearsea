@@ -399,11 +399,14 @@ Layer: sandbox | Invariant: INV-031
 > **Bukti CI (ronde 28):** suite ini `#![cfg(unix)]`, jadi gate lokal Windows tidak menjalankannya.
 > Verifikasi nyata = [run 37895683629](https://github.com/keydeveloping/nearsea/actions/runs/37895683629)
 > (PR #14, `ubuntu-latest`): `test result: ok. 18 passed; 0 failed … finished in 221.50s`.
-> **Temuan F1 (bug nyata, bukan test yang salah):** `nft_transfer` atas token yang **masih di-approve**
-> gagal `ExcessiveUnlockError` bila penerima belum memegang token lain di koleksi yang sama — bug
-> storage-accounting NEP-145 di kontrak koleksi, dicatat sebagai **TASK-036** di `tasks/backlog.md`.
-> TC-006 memakai urutan `nft_revoke` → `nft_transfer` sebagai jalan keluar sementara; jalur uang
-> NearSea (`list` → `buy` via NEP-199) tidak terkena.
+> **Temuan F1 (bug nyata, bukan test yang salah) — DIPERBAIKI ronde 29 (TASK-036):**
+> `nft_transfer` atas token yang **masih di-approve** gagal `ExcessiveUnlockError` bila penerima belum
+> memegang token lain di koleksi yang sama. Akar masalah: approval NEP-178 tidak melakukan storage
+> accounting, jadi entry approval tak pernah ditagihkan; pencabutannya saat transfer terbaca hook
+> NEP-145 sebagai kredit ke receiver. Perbaikan: `transfer_hook` kustom mencabut approval **sebelum**
+> snapshot storage accounting. Konsekuensinya **TC-006 kembali memakai jalur aslinya** (transfer
+> tanpa `nft_revoke` lebih dulu), dan ada test baru `task_036_*` sebagai regression sandbox. Jalur uang
+> NearSea (`list` → `buy` via NEP-199) memang tidak pernah terkena.
 > **Belum diklaim (tetap M1+/fase 2):** TC-011 penuh, TC-012 (pause), bundle/offers, launchpad penuh,
 > API/admin/notifikasi/E2E, dan **angka gas terukur** per-call.
 

@@ -66,10 +66,11 @@ Milestone: M0 | M1 | M2 | M3 | M4
 | TASK-033 | Error & notifikasi terpusat: registry kode error + pemetaan panic kontrak + kebijakan notifikasi (FE + API) | frontend/backend | P1 | 008 | development/error-handling | todo | 2 | Modul error terpusat dipakai; tidak ada pesan ad-hoc | M1+ |
 | TASK-034 | Prep scaling: app stateless + pooling + rencana read replica/LB (aktif saat trafik naik) | infra | P1 (fase 2) | 028 | architecture/scaling | todo | 3 | App stateless terverifikasi + rencana replica/LB tertulis | M2 |
 | TASK-035 | Audit dependensi: tinjau ulang advisory tanpa patch yang di-*ignore* (`--ignore-unfixable`) | infra | P2 | 001 | development/ci-cd.md §3 | todo | 0.5 | Advisory yang di-ignore punya keputusan tercatat: diperbaiki, diganti, atau diterima + alasan | M1+ |
-| TASK-036 | **Fix storage accounting `nft_transfer` atas token ter-approve (temuan F1)** — transfer gagal `ExcessiveUnlockError` bila penerima belum punya token; storage entry approval dibebaskan ke **penerima** padahal ditagih ke **owner** | contract | P0 | 002 | contracts/nft-collection.md §4/§7 + security/smart-contract-security-architecture.md §15 | todo | 2 | `nft_transfer` token ter-approve ke penerima terdaftar berhasil (regression test sandbox) | M1 |
+| TASK-036 | **Fix storage accounting `nft_transfer` atas token ter-approve (temuan F1)** — transfer gagal `ExcessiveUnlockError` bila penerima belum punya token; storage entry approval dibebaskan ke **penerima** padahal tak pernah ditagih ke siapa pun | contract | P0 | 002 | contracts/nft-collection.md §4/§7 + security/smart-contract-security-architecture.md §15 | done | 2 | `nft_transfer` token ter-approve ke penerima terdaftar berhasil (regression test sandbox) | M1 |
 | TASK-037 | Tinjau `function-call-key-plugin` (dependency transitif `near-connect-hooks`): menyimpan private key function-call di `localStorage` | security | P0 | 007 | security/key-management.md + features/auth.md | todo | 1 | Keputusan tercatat: jalur dinonaktifkan permanen (tanpa `addFunctionCallKey`), atau dependency diganti, atau diterima + alasan tertulis. **Kode plugin terbukti ADA di bundle klien (ronde 26) — bukan alasan tree-shaking** | M1+ |
 | TASK-038 | Aktifkan lint yang tertunda setelah struktur `features/` ada: `import/order`, `no-restricted-imports` (larangan impor lintas-fitur), `react/jsx-no-useless-fragment` | frontend | P2 | 007 | development/code-standards.md §9 | done | 0.5 | Ketiga aturan aktif di `eslint.config.mjs` dan gate FE tetap hijau | M1+ |
 | TASK-039 | Advisory **RUSTSEC-2026-0285** (`rustls 0.23.43`, TLS 1.3 handshake) — perbaikan `>=0.23.45` bentrok dengan pin `aws-lc-rs =1.16.2` dari `near-crypto` | security/infra | P0 (blok PR #14) | 006 | development/ci-cd.md §3 | done | 1 | Keputusan tercatat: konflik bump dipecahkan (mis. bump `near-sdk`/`near-crypto`), ATAU advisory diterima + alasan tertulis di `audit.toml` (bukan di-ignore diam-diam) | M1 |
+| TASK-040 | **INV-020 untuk map approval belum ditegakkan**: `nft_approve` tidak menagih storage entry approval ke siapa pun (derive NEP-178 tanpa storage accounting) — temuan sampingan TASK-036 | contract | P2 (sebelum mainnet) | 002 | security/smart-contract-invariants.md INV-020 + contracts/nft-collection.md §4 | todo | 1 | `nft_approve` menagih storage entry approval ke approver/owner (atau keputusan "terima" tercatat + alasan); test menutup predikat INV-020 | M1+ |
 
 > **TASK-039 `done` (ronde 28):** advisory **RUSTSEC-2026-0285** (`rustls 0.23.43` — "TLS 1.3 handshake
 > messages incorrectly accepted across encryption level boundaries"; perbaikan `>=0.23.45`) terbit
@@ -93,6 +94,21 @@ Milestone: M0 | M1 | M2 | M3 | M4
 > **Tindak lanjut**: **hapus entri di `.cargo/audit.toml`** begitu upstream melonggarkan pin
 > `aws-lc-rs` sehingga `rustls >=0.23.45` bisa dipakai. Ini membuka blokir PR #14 (tiket 07/08).
 > **Dampak**: PR #14 (tiket 07/08) terblokir check wajib `Dependency audit` sampai ini diputuskan.
+
+> **TASK-036 `done` (ronde 29):** bug F1 diperbaiki. **Akar masalah**: derive `NonFungibleToken`
+> memasang `all_hooks` kontrak sebagai `()`, dan hook approve NEP-178 **tidak** melakukan storage
+> accounting — jadi storage entry approval tidak pernah ditagihkan ke siapa pun. Saat transfer,
+> `TokenApprovals` mencabut approval (membebaskan storage itu); hook `Nep171StorageAccountingHook`
+> yang berjalan lebih luar melihat `storage_usage` turun dan memperlakukannya sebagai kredit, lalu
+> memanggil `unlock_storage` ke **receiver** — yang belum menyetor untuk entry itu → `ExcessiveUnlockError`.
+> **Perbaikan** (1 baris atribut + 1 hook kecil): `#[non_fungible_token(transfer_hook = "RevokeApprovalsBeforeStorageAccounting")]`
+> mencabut approval **sebelum** hook NEP-145 mengambil snapshot, sehingga delta = 0. Karena tidak ada
+> pihak yang ditagih untuk entry itu, tidak ada yang perlu dikreditkan — akuntansi tetap konsisten.
+> **Bukti**: **4 regression test unit** (2 gagal sebelum perbaikan dengan pesan persis
+> `cannot unlock more tokens than it has deposited`, 1 kontrol lolos) + 1 test sandbox `task_036_*`
+> yang menutup AC "regression test sandbox". Suite lokal: 46 koleksi + 73 market hijau, `fmt`/`clippy
+> -D warnings` bersih, wasm ter-build. **TC-006 kini memakai jalur asli** (transfer tanpa `nft_revoke`
+> lebih dulu) — test yang dulu dirusak workaround.
 
 > **TASK-031 `done` (ronde 18c):** repo dijadikan **publik** oleh user → branch protection tersedia (sebelumnya 403 "butuh GitHub Pro" saat private). Proteksi **aktif** di `dev`/`testnet`/`mainnet`: PR wajib, force-push & delete diblokir **termasuk admin** (`enforce_admins`), 5 required status checks, conversation resolution; `strict` (branch up-to-date) di testnet/mainnet. Tag protection via ruleset `protect-release-tags` (`contract-v*`/`web-v*`/`indexer-v*`: delete + update diblokir). **Bukti**: push langsung ke `dev` ditolak GitHub — `GH006 Protected branch update failed … Changes must be made through a pull request. 5 of 5 required status checks are expected.`
 > **Required approval = 0 (ditunda, keputusan user ronde 18c):** repo hanya punya satu akun dan GitHub melarang self-approve, jadi approval 2/1 akan mengunci semua PR. Naikkan ke `testnet`=1 / `mainnet`=2 saat ada maintainer kedua ([git-workflow.md](../docs/development/git-workflow.md) §16). `require_code_owner_reviews` juga ditunda karena alasan yang sama.

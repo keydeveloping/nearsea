@@ -797,11 +797,11 @@ async fn tc_053_stale_when_approval_revoked_refunds_buyer() -> anyhow::Result<()
 
 /// TC-006 · INV-016 kasus A — kepemilikan pindah di luar market.
 ///
-/// Urutan `nft_revoke` → `nft_transfer` dipakai karena `nft_transfer` atas token yang **masih
-/// di-approve** gagal di kontrak koleksi dengan `ExcessiveUnlockError` dari hook NEP-145
-/// (temuan F1, `tasks/backlog.md` TASK-036) — bug storage-accounting yang tidak berhubungan
-/// dengan staleness. Yang diuji di sini tetap kasus A yang sesungguhnya: **kepemilikan token
-/// berpindah ke akun lain** sementara entry `Sale` masih ada, dan market menolak settle.
+/// Sejak **TASK-036** diperbaiki (ronde 29), `nft_transfer` atas token yang masih di-approve
+/// berjalan normal — jadi test ini memakai jalur yang sesungguhnya: seller memindahkan token
+/// **tanpa** mencabut approval lebih dulu, persis seperti di rantai nyata. Yang diuji tetap
+/// kasus A: **kepemilikan token berpindah ke akun lain** sementara entry `Sale` masih ada, dan
+/// market menolak settle.
 #[tokio::test]
 async fn tc_006_stale_when_ownership_moved_refunds_buyer() -> anyhow::Result<()> {
     let _guard = guard().await;
@@ -811,17 +811,8 @@ async fn tc_006_stale_when_ownership_moved_refunds_buyer() -> anyhow::Result<()>
 
     let token_id = slice.mint_and_list(&slice.seller, PRICE).await?;
 
-    // Seller mencabut approval (prasyarat teknis, lihat catatan di atas) lalu memindahkan token
-    // di luar market — mis. menjualnya lewat jalur lain.
-    slice
-        .seller
-        .call(slice.collection.id(), "nft_revoke")
-        .args_json(json!({ "token_id": token_id, "account_id": slice.market.id() }))
-        .deposit(NearToken::from_yoctonear(1))
-        .max_gas()
-        .transact()
-        .await?
-        .into_result()?;
+    // Seller memindahkan token di luar market — mis. menjualnya lewat jalur lain. Approval ke
+    // market masih terpasang; kontrak yang mencabutnya saat transfer (TASK-036).
     slice
         .seller
         .call(slice.collection.id(), "nft_transfer")
@@ -981,6 +972,56 @@ async fn tc_017_double_submit_second_purchase_reverts() -> anyhow::Result<()> {
         Some(buyer.id().clone())
     );
     assert!(slice.pending_purchase(&token_id).await?.is_none());
+    Ok(())
+}
+
+// --- TASK-036 · transfer token ter-approve (temuan F1) -----------------------
+
+/// TASK-036 · regression test sandbox — `nft_transfer` atas token yang **masih di-approve**
+/// ke penerima terdaftar yang belum memegang token. Dulu gagal `ExcessiveUnlockError`
+/// (storage-accounting NEP-145 di koleksi). AC TASK-036 menuntut bukti di rantai sungguhan,
+/// bukan hanya unit — karena itu test ini ada di suite sandbox, bukan di `contract/src/lib.rs`.
+#[tokio::test]
+async fn task_036_transfer_approved_token_to_fresh_receiver_succeeds() -> anyhow::Result<()> {
+    let _guard = guard().await;
+    let slice = slice().await;
+    let receiver = slice.new_buyer().await?;
+
+    let token_id = slice.mint_one(&slice.seller).await?;
+    // Token sekarang punya approval aktif ke market; receiver belum pernah pegang token.
+    let _approval_id = slice.approve_market(&slice.seller, &token_id).await?;
+    assert_eq!(
+        slice.approval_id_of(&token_id).await?,
+        Some(_approval_id),
+        "prasyarat: token benar-benar punya approval aktif"
+    );
+
+    let result = slice
+        .seller
+        .call(slice.collection.id(), "nft_transfer")
+        .args_json(json!({
+            "receiver_id": receiver.id(),
+            "token_id": token_id,
+            "approval_id": null,
+            "memo": null,
+        }))
+        .deposit(NearToken::from_yoctonear(1))
+        .max_gas()
+        .transact()
+        .await?;
+    result.clone().into_result()?;
+
+    assert_eq!(
+        slice.token_owner(&token_id).await?,
+        Some(receiver.id().clone()),
+        "transfer token ter-approve ke penerima baru berhasil (TASK-036)"
+    );
+    // Approval lama ikut dicabut oleh transfer (NEP-178/INV-011).
+    assert_eq!(
+        slice.approval_id_of(&token_id).await?,
+        None,
+        "approval dicabut setelah transfer (INV-011)"
+    );
     Ok(())
 }
 

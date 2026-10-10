@@ -11,8 +11,10 @@ use near_sdk::collections::{LookupMap, Vector};
 use near_sdk::json_types::U128;
 use near_sdk::serde::Serialize;
 use near_sdk::{assert_one_yocto, env, near, AccountId, BorshStorageKey, PanicOnDefault};
+use near_sdk_contract_tools::hook::Hook;
 use near_sdk_contract_tools::nft::*;
 use near_sdk_contract_tools::owner::Owner;
+use near_sdk_contract_tools::standard::nep178::Nep178Controller;
 use near_sdk_contract_tools::standard::nep297::{Event, EventLog, ToEventLog};
 use near_sdk_contract_tools::Owner as OwnerDerive;
 use std::borrow::Cow;
@@ -196,6 +198,7 @@ fn royalty_amount(balance: u128, bps: u16) -> u128 {
 
 #[near(contract_state)]
 #[derive(PanicOnDefault, OwnerDerive, NonFungibleToken)]
+#[non_fungible_token(transfer_hook = "RevokeApprovalsBeforeStorageAccounting")]
 pub struct NftCollection {
     creator_id: AccountId,
     royalty_bps: u16,
@@ -204,6 +207,25 @@ pub struct NftCollection {
     allowlist: LookupMap<(u16, AccountId), Option<u32>>,
     minted_by_wallet: LookupMap<(u16, AccountId), u32>,
     next_token_id: u64,
+}
+
+/// TASK-036 (temuan F1). Approval NEP-178 tidak melakukan storage accounting, jadi entry
+/// approval tak pernah ditagihkan ke siapa pun; saat transfer, pencabutannya membebaskan storage
+/// itu dan hook NEP-145 bawaan membacanya sebagai kredit ke **receiver** yang belum menyetor →
+/// `ExcessiveUnlockError`. Hook ini mencabut approval **sebelum** snapshot `storage_usage`
+/// diambil, sehingga delta = 0. Urutan dijamin: `transfer_hook` mendahului `all_hooks`.
+/// Latar lengkap: docs/contracts/nft-collection.md §Status implementasi.
+pub struct RevokeApprovalsBeforeStorageAccounting;
+
+impl Hook<NftCollection, Nep171Transfer<'_>> for RevokeApprovalsBeforeStorageAccounting {
+    fn hook<R>(
+        contract: &mut NftCollection,
+        args: &Nep171Transfer<'_>,
+        f: impl FnOnce(&mut NftCollection) -> R,
+    ) -> R {
+        Nep178Controller::revoke_all_unchecked(contract, &args.token_id);
+        f(contract)
+    }
 }
 
 #[near]
@@ -1435,6 +1457,77 @@ mod tests {
         assert_eq!(tokens.len(), 1);
         assert_eq!(tokens[0].token_id, "0");
         assert_eq!(contract.nft_supply_for_owner(bob()), 0.into());
+    }
+
+    // --- TASK-036 · transfer token ter-approve (temuan F1) ---
+
+    /// INV-011 · TC-006 — kontrol: transfer token **tanpa approval** ke penerima terdaftar tapi
+    /// belum pegang token. Lolos → bug spesifik pada pencabutan approval, bukan transfer biasa.
+    #[test]
+    fn test_transfer_unapproved_token_to_fresh_receiver_succeeds() {
+        let mut contract = contract_with_public_phase(10, 2);
+        deposit_storage(&mut contract, &alice());
+        deposit_storage(&mut contract, &bob());
+
+        run(&alice(), PRICE, T0);
+        contract.nft_mint(None, 1);
+
+        run(&alice(), 1, T0);
+        contract.nft_transfer(bob(), "0".to_string(), None, None);
+
+        assert_eq!(contract.nft_token("0".to_string()).unwrap().owner_id, bob());
+    }
+
+    /// INV-011 · TASK-036 — transfer biasa atas token yang **masih di-approve** ke penerima
+    /// terdaftar tapi belum memegang token. Dulu gagal `ExcessiveUnlockError` (storage NEP-145).
+    #[test]
+    fn test_transfer_approved_token_to_registered_receiver_succeeds() {
+        let mut contract = contract_with_approved_token();
+
+        run(&alice(), 1, T0);
+        contract.nft_transfer(bob(), "0".to_string(), None, None);
+
+        assert_eq!(contract.nft_token("0".to_string()).unwrap().owner_id, bob());
+        assert_eq!(contract.nft_supply_for_owner(bob()), 1.into());
+    }
+
+    /// INV-011 · NEP-199 · TASK-036 — jalur market: token ter-approve dipindah lewat
+    /// `nft_transfer_payout` ke buyer yang belum memegang token.
+    #[test]
+    fn test_transfer_payout_of_approved_token_to_fresh_receiver_succeeds() {
+        let mut contract = contract_with_approved_token();
+        let approval_id = market_approval_id(&contract);
+
+        run(&market(), 1, T0);
+        let payout = contract.nft_transfer_payout(
+            bob(),
+            "0".to_string(),
+            Some(approval_id),
+            None,
+            PRICE.into(),
+            None,
+        );
+
+        assert_eq!(contract.nft_token("0".to_string()).unwrap().owner_id, bob());
+        assert_eq!(payout.len(), 1, "royalti satu penerima (kreator)");
+    }
+
+    /// INV-011 · TASK-036 — setelah transfer pertama (yang mencabut approval), token dipindah
+    /// lagi antar akun terdaftar; jalur kedua tidak lagi ter-approve.
+    #[test]
+    fn test_transfer_approved_token_then_second_transfer_succeeds() {
+        let mut contract = contract_with_approved_token();
+
+        run(&alice(), 1, T0);
+        contract.nft_transfer(bob(), "0".to_string(), None, None);
+
+        run(&bob(), 1, T0);
+        contract.nft_transfer(alice(), "0".to_string(), None, None);
+
+        assert_eq!(
+            contract.nft_token("0".to_string()).unwrap().owner_id,
+            alice()
+        );
     }
 
     // --- storage NEP-145 (INV-020) ---

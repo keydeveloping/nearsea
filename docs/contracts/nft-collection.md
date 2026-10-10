@@ -205,6 +205,39 @@ Bukti unit (11 test): perpindahan kepemilikan + payout kreator, batas ≤10% unt
 
 - **Belum dibuktikan di tiket ini:** TC-003 versi sandbox — yaitu validasi payout di sisi **market** (≥1 penerima, amount > 0, Σ ≤ harga−fee, refund saat invalid) dan angka gas penuh (butuh dua kontrak). Sama seperti TC-001 di TASK-002, bagian yang bisa dibuktikan di unit sudah dibuktikan di unit.
 
+### Status implementasi: storage accounting transfer ter-approve (TASK-036, ronde 29)
+
+Kontrak memasang `transfer_hook` kustom `RevokeApprovalsBeforeStorageAccounting` pada derive
+`NonFungibleToken`. Alasannya bukan preferensi gaya, melainkan bug yang ditemukan suite sandbox
+(temuan F1): derive bawaan **tidak** melakukan storage accounting untuk approval NEP-178
+(`all_hooks` kontrak = `()`), sehingga storage entry approval tidak pernah ditagihkan ke siapa pun.
+Saat transfer, `TokenApprovals` mencabut approval — membebaskan storage itu — dan hook
+`Nep171StorageAccountingHook` yang berjalan lebih luar melihat `storage_usage` turun, memperlakukannya
+sebagai kredit, lalu memanggil `unlock_storage` ke **receiver**. Receiver belum pernah menyetor untuk
+entry itu → `ExcessiveUnlockError`, sehingga `nft_transfer` atas token ter-approve **selalu gagal**
+untuk penerima yang belum memegang token.
+
+Hook kustom mencabut approval **sebelum** hook NEP-145 mengambil snapshot `storage_usage`, jadi delta
+yang dilihatnya nol. Karena tidak ada pihak yang ditagih untuk entry itu, tidak ada yang perlu
+dikreditkan — delta nol, jadi tidak ada kredit palsu. Urutan dijamin karena
+`transfer_hook` berjalan mendahului `all_hooks`; pencabutan bawaan di dalam `all_hooks` menjadi no-op.
+(INV-019/INV-020 untuk transfer tidak berubah; lihat catatan gap di akhir bagian ini.)
+
+Bukti: **4 regression test unit** — `test_transfer_unapproved_token_to_fresh_receiver_succeeds`
+(kontrol), `test_transfer_approved_token_to_registered_receiver_succeeds`,
+`test_transfer_payout_of_approved_token_to_fresh_receiver_succeeds`,
+`test_transfer_approved_token_then_second_transfer_succeeds` — + 1 test sandbox
+(`task_036_transfer_approved_token_to_fresh_receiver_succeeds`). Yang gagal sebelum perbaikan
+persis **dua**: kedua test yang memakai `nft_transfer` langsung, dengan pesan
+`cannot unlock more tokens than it has deposited`. Test kontrol dan test `nft_transfer_payout`
+(diinisiasi market dengan `approval_id`) **lolos** bahkan sebelum perbaikan — jadi yang rusak
+memang jalur `nft_transfer` langsung, bukan jalur uang NearSea (`list` → `buy`).
+
+**Gap yang sengaja tidak ditutup di sini:** `nft_approve` sendiri masih **tidak** menagih storage
+entry approval ke siapa pun (derive NEP-178 tidak melakukan storage accounting). Perbaikan ini
+menghapus gejalanya di jalur transfer, tapi INV-020 untuk map approval masih belum ditegakkan —
+dicatat sebagai **TASK-040** (P2, sebelum mainnet), bukan diperbaiki di sini (Surgical Changes).
+
 ---
 
 ## 5. Surface launchpad (config) + view
