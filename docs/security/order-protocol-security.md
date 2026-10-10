@@ -60,7 +60,7 @@ Sebelum sign, FE wajib view-call on-chain: harga, ownership, expiry, stale flag.
 
 ## 5. Aturan keamanan per transisi
 
-- **ACTIVE→SOLD (listing)**: deposit = harga (kelebihan deposit → selisih dikembalikan buyer via resolve), buyer ≠ seller (INV-023), token masih milik seller & approval valid (dual verification), payout tervalidasi: **royalti ≤ 10% harga**, ≤10 penerima, sum ≤ harga−fee, sisa ≤1 yocto, fee 2% dipotong dulu.
+- **ACTIVE→SOLD (listing)**: deposit = harga (kelebihan deposit → selisih dikembalikan buyer via resolve), buyer ≠ seller (INV-023), token masih milik seller & approval valid (dual verification), payout tervalidasi: **royalti ≤ 10% harga**, ≤10 penerima, `Σpayout ≤ harga−fee`, fee 2% dipotong dulu, residual → seller (INV-002 — **tanpa** batas atas; koreksi ronde 23, lihat [contracts/market.md](../contracts/market.md) §3).
 - **ACTIVE→ACCEPTED (offer)**: hanya oleh owner token saat itu & sebelum expiry; **1 offer aktif/buyer/token** & min 0.01 Ⓝ dicek saat make; escrow exact = attached deposit.
 - **ACTIVE→CANCELLED**: seller/listing — market **hanya menghapus entry `Sale`** (tidak mencabut approval: NEP-178 tidak punya revoke untuk approved account — [contracts/market.md](../contracts/market.md) §2a); buyer/offer — refund ke `offer.buyer_id` hardcoded; storage deposit offer TIDAK otomatis kembali (ditarik via `storage_withdraw` oleh pemiliknya — mencegah gas-DoS refund massal).
 - **EXPIRED**: lazy evaluation — dicek saat sentuh (accept/cancel/withdraw); tidak butuh cron (FACT: tidak ada cron di MVP).
@@ -115,7 +115,7 @@ Pola tutorial (RESEARCH.md §10): sale dihapus sebelum settlement (optimistic); 
 | `creatorY.testnet` | C | `100000000000000000000000` |
 | **Receiver unik** | | **2 (≤10 ✓)** |
 
-**Langkah 3 — distribusi final** (fee dipotong **sekali** dari harga bundle; sisa pembulatan jatuh ke seller):
+**Langkah 3 — distribusi final** (fee dipotong **sekali** dari harga bundle; residual jatuh ke seller):
 
 | Komponen | Perhitungan | Nilai (yocto) |
 |---|---|---|
@@ -125,10 +125,11 @@ Pola tutorial (RESEARCH.md §10): sale dihapus sebelum settlement (optimistic); 
 | Royalti `creatorX` (merged) | A + B | `150000000000000000000000` |
 | Royalti `creatorY` (merged) | C | `100000000000000000000000` |
 | Seller (residual) | `plafon − Σroyalti` | `4650000000000000000000000` |
-| **Sisa pembulatan** | `plafon − Σpayout` | **`0`** (≤1 yocto ✓) |
 
 - Verifikasi exact: `fee + Σroyalti + seller = 0.1 + 0.25 + 4.65 = 5 Ⓝ` ✓ (INV-001/002).
-- **Varian dust (sisa 1 yocto)**: bila payout eksternal NFT contract menghasilkan `Σroyalti = plafon − 1` (`4899999999999999999999999`), sisa `1` yocto **diterima** (batas inklusif INV-002); 1 yocto tersebut tetap di kontrak (tidak terdistribusi) dan **tidak** direfund terpisah. Bila `sisa ≥ 2` yocto → tolak + refund penuh (SEC-ORDER-001).
+- **Residual seller = proceeds, bukan dust** (koreksi ronde 23). Payout dari koleksi hanya berisi
+  royalti; market menambahkan seller sebagai residual, sehingga `plafon − Σroyalti` wajar besar
+  (di sini 4.65 Ⓝ). Tidak ada lagi aturan "sisa ≤1 yocto" — lihat [contracts/market.md](../contracts/market.md) §3.
 
 ## 10. Tabel per-aktor (siapa boleh apa)
 
@@ -137,7 +138,7 @@ Pola tutorial (RESEARCH.md §10): sale dihapus sebelum settlement (optimistic); 
 | **Buyer** | `buy`, `buy_bundle` (deposit = harga), `make_offer` (escrow exact), `cancel_offer` | `predecessor_account_id` = pemanggil; deposit ≥ harga / = offer | ≠ seller (INV-023); private → `allowed_buyer` (INV-026); 1 offer aktif/buyer/token (INV-024); min 0.01 Ⓝ (INV-030) | `market_sale` / `market_offer` / `market_offer_cancel` |
 | **Seller** | `list_nft_for_sale`, `update_price`, `remove_sale`, `accept_offer`, `create_bundle`, `cancel_bundle` | `predecessor` = `sale.owner_id` / owner token saat itu; `assert_one_yocto()` (kecuali list/create = storage) | harga ≥ min (INV-030); bundle ≤10 token & receiver unik ≤10 (INV-021); phase launchpad berurutan (INV-029) | `market_list` / `market_update_price` / `market_delist` / `market_offer_accept` |
 | **Market contract** | settle (`nft_transfer_payout`), refund, distribusi fee/royalti, tandai stale | **internal** — bukan aktor eksternal; `#[private]` callback (INV-013) | tujuan transfer hanya turunan state tervalidasi (INV-014); dual verification sebelum transfer (INV-016) | event `market_*` (emitter = market) |
-| **NFT contract** (koleksi) | `nft_transfer_payout` (paksa royalti NEP-199), `nft_token`, `nft_is_approved`, `nft_approve` | dipanggil market sebagai approved account (NEP-178); **`nft_revoke` owner-only** → market tidak mencabut approval | payout UNTRUSTED → market validasi (≤10, sum, remainder — INV-002/003); approval invalid setelah transfer (INV-011) | `nft_transfer` / `nft_mint` (NEP-171/297) |
+| **NFT contract** (koleksi) | `nft_transfer_payout` (paksa royalti NEP-199), `nft_token`, `nft_is_approved`, `nft_approve` | dipanggil market sebagai approved account (NEP-178); **`nft_revoke` owner-only** → market tidak mencabut approval | payout UNTRUSTED → market validasi (≤10, `amount > 0`, Σ ≤ harga−fee — INV-002/003); approval invalid setelah transfer (INV-011) | `nft_transfer` / `nft_mint` (NEP-171/297) |
 | **Siapa pun** | `remove_stale_listing` (permissionless), refund offer expired (lazy) | bebas | hanya bila mismatch/stale **terbukti on-chain**; refund selalu ke `buyer_id` (INV-005) | `market_stale_detected` / `market_offer_expire` |
 
 ## 11. Anggaran gas (Tgas) per jalur order
@@ -167,7 +168,7 @@ MANIPULASI ORDER (tujuan penyerang: bayar < nilai / ambil aset tanpa bayar / kur
 │   ├── A2 royalti per token > 10% .................... INV-027 → tolak + refund (TC-015)
 │   ├── A3 receiver duplikat / > 10 unik .............. INV-003/021 → merge; > 10 ditolak saat create_bundle
 │   ├── A4 fee dinaikkan > cap ........................ INV-004/MAX_FEE_BPS=500 → revert
-│   └── A5 drain pembulatan (dust) ................... INV-002 sisa ≤1 yocto; dust tetap di kontrak
+│   └── A5 drain pembulatan (dust) ................... INV-002: residual → seller; tidak ada dust tertahan di kontrak
 ├── B. Manipulasi identitas & approval
 │   ├── B1 self-buy (beli milik sendiri) .............. INV-023 → revert
 │   ├── B2 bypass private listing ..................... INV-026 → hanya allowed_buyer (TC-011)

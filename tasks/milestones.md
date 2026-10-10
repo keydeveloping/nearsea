@@ -76,6 +76,40 @@
   bahwa kode `function-call-key-plugin` ter-tree-shake dari bundle **tidak benar** (kode penandatanganan
   lokal ada di chunk klien) → TASK-037 naik prioritas.
 
+- **Status TASK-005 (2026-10-08, ronde 23): ✅ `done` (kode).** Jalur settlement di `market/src/lib.rs`:
+  `buy` (tulis `pending_purchases` sebelum optimistic removal — INV-031) → `process_purchase` (dual
+  verification saat settle; stale dua kasus INV-016 → refund + event; verifikasi tak pasti → refund +
+  restore `Sale`) → `nft_transfer_payout` (1 yocto, `max_len_payout=10`) → `resolve_purchase` (validasi
+  payout UNTRUSTED `1..=10` penerima / `amount>0` / `Σ ≤ harga−fee`; fee → treasury, royalti → receiver,
+  residual → seller, kelebihan deposit → buyer; gagal → refund penuh + restore), `recover_stuck_purchase`
+  (permissionless, INV-031), `update_fee_bps`/`update_treasury`, `fee_bps`/`treasury` di init. Bukti:
+  **116 test** workspace (41 baru) — Σ keluar == Σ masuk exact, 6 jalur payout invalid → refund, stale
+  dua kasus, recovery dengan/tanpa restore, gas worst case; `fmt`/`clippy -D warnings` bersih; wasm 239 KB.
+  **Dua koreksi dokumen**: (1) `withdraw_fees` dihapus — fee masuk treasury saat settlement
+  ([contracts/market.md](../docs/contracts/market.md) §4a; TC-047 dialihkan ke `update_fee_bps`/`update_treasury`);
+  (2) aturan `sisa ≤1 yocto` (INV-002) dibatalkan — residual = proceeds seller, bukan dust.
+  **Belum diklaim**: race TC-016/017, TC-022, TC-048, angka gas terukur — butuh TASK-006. Sisa slice M1:
+  TASK-006 (suite sandbox), jalur FE 007 → 008.
+
+- **Status TASK-006 (2026-10-08, ronde 24): ✅ `done`.** Suite sandbox dua-kontrak di
+  `market/tests/slice_sandbox.rs` (**18 test**) + harness `market/tests/common/mod.rs` — men-deploy wasm
+  **koleksi + market nyata** di sandbox chain (bukan mock) dari `target/near/<crate>/`, jalur yang sama
+  dipakai gate CI. Yang dibuktikan: **TC-002** jalur bahagia penuh dengan angka exact (fee 2% → treasury,
+  royalti 5% → kreator, proceeds seller = residual; NFT **terbukti** tetap di wallet seller selama
+  listing — non-custodial; approval lama invalid setelah transfer), **TC-001**, **TC-003** (payout tidak
+  valid dari koleksi pihak ketiga — fixture `market/tests/fixtures/rogue-collection` — → refund penuh +
+  listing dipulihkan, empat bentuk payout invalid + kontrol `Valid`), **TC-006/TC-053** (stale dua kasus),
+  **TC-013**, **TC-016** (race 20 pembeli → tepat 1 menang, 19 revert `CONFLICT_SOLD` dengan deposit
+  kembali penuh), **TC-017**, **TC-020**, **TC-022**, **TC-044**, **TC-047**, **TC-048**, **TC-054**
+  (recovery permissionless), plus INV-014 dan INV-004/INV-027 (split konsisten saat fee & royalti di cap).
+  Bukti: `cargo test --workspace` = **134 test** (73 market unit + 18 sandbox + 42 koleksi + 1 factory),
+  `fmt --check` + `clippy -D warnings` bersih, 4 wasm ter-build. **Sandbox hanya jalan di Linux/macOS**
+  (binary nearcore tidak dipublikasikan untuk Windows) — dev-dependency di-scope `cfg(unix)` supaya gate
+  lokal Windows tidak berubah; CI membangun wasm + fixture sebelum test.
+  **Temuan F1 (bug nyata, bukan test yang salah):** `nft_transfer` atas token yang **masih di-approve**
+  gagal `ExcessiveUnlockError` (storage-accounting NEP-145 di kontrak koleksi) → dicatat sebagai
+  **TASK-036**; jalur uang NearSea (`list` → `buy`) tidak terkena. Sisa slice M1: jalur FE 007 → 008.
+
 ## M1+ — MVP completion (lanjutan eksplisit, bukan dibuang)
 
 - Sisa fitur MVP lama: offers (009), private listing + bundle (010), factory (012), notifikasi (015),

@@ -32,7 +32,7 @@ Bagaimana platform mengambil fee dari setiap penjualan, dengan jumlah, jalur, da
 
 ## Security implications
 
-- Fee dipotong **sebelum** distribusi seller+royalti; validasi: `fee + Σroyalti + seller ≤ harga` (INV-001), sisa ≤ 1 yocto (INV-003).
+- Fee dipotong **sebelum** distribusi seller+royalti; validasi: `fee + Σroyalti + seller == harga` (INV-001), dan `Σpayout ≤ harga − fee` (INV-002).
 - **`MAX_FEE_BPS` immutable cap** (≤500 = 5%) membatasi kerusakan bila owner key disusupi; perubahan `fee_bps` hanya lewat governance ADR-013 (SEC-CONTRACT-004).
 - **Nilai default `fee_bps = 200` (2%)** — cap 500 bukan berarti fee 5% (koreksi kontradiksi: lihat [tech-stack.md](../architecture/tech-stack.md)).
 - Payout ke treasury divalidasi seperti receiver lain (masuk hitungan ≤10 penerima).
@@ -40,7 +40,7 @@ Bagaimana platform mengambil fee dari setiap penjualan, dengan jumlah, jalur, da
 ## Scalability / Operational / Cost
 
 - Fee on-chain = nol biaya operasional tambahan; tidak ada penagihan manual.
-- Penarikan treasury via `withdraw_fees` (owner-only pada MVP default).
+- Fee ditransfer **langsung ke akun treasury di dalam settlement** — market tidak pernah memegang dana fee, jadi tidak ada penarikan treasury terpisah (koreksi ronde 23: model akumulasi + `withdraw_fees` dibatalkan; lihat [contracts/market.md](../contracts/market.md) §4a).
 - Gas: satu transfer tambahan per settlement — dapat diabaikan.
 
 ## Decision
@@ -55,5 +55,5 @@ Bagaimana platform mengambil fee dari setiap penjualan, dengan jumlah, jalur, da
 ## Consequences
 
 - Setiap settlement wajib menghitung & memvalidasi fee; error case: payout invalid → refund penuh (SEC-ORDER-001).
-- Treasury address harus diisi sebelum deploy; sampai itu, `withdraw_fees` tidak bisa diuji end-to-end.
-- Terkait: [features/payments.md](../features/payments.md), [01-PRD.md](../01-PRD.md) §13, SEC-CONTRACT-004, INV-001/003.
+- **Treasury address wajib akun yang ada sebelum deploy.** Bila transfer fee gagal (akun tidak ada), receipt itu gagal terpisah — penjualan tetap sah, tapi fee tertinggal di saldo kontrak tanpa jalur penarikan (koreksi ronde 23; [contracts/market.md](../contracts/market.md) §4a).
+- Terkait: [features/payments.md](../features/payments.md), [01-PRD.md](../01-PRD.md) §13, SEC-CONTRACT-004, INV-001/002.

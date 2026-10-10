@@ -2,7 +2,16 @@
 # Struktur & perintah gate: docs/development/ci-cd.md · AGENTS.md §Build & Test Commands
 [workspace]
 resolver = "2"
-members = ["contract", "market", "factory"]
+# `contract`/`market`/`factory` = kontrak produksi. Anggota keempat adalah **fixture TEST**
+# (koleksi pihak ketiga "nakal" untuk TC-003) — sengaja di workspace supaya path artefaknya
+# konsisten (`target/near/<crate>/<crate>.wasm`) dan ikut gate fmt/clippy. Ia tidak pernah
+# ikut rilis: workflow rilis membangun crate `contract market factory` secara eksplisit.
+members = [
+    "contract",
+    "market",
+    "factory",
+    "market/tests/fixtures/rogue-collection",
+]
 
 [workspace.dependencies]
 near-sdk = "5.18"

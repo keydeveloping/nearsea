@@ -446,7 +446,7 @@ Mencerminkan Payout NEP-199 yang sudah di-merge per receiver (INV-003, INV-021).
 ```
 
 - `role` ∈ `seller` | `royalty` | `treasury` (penerima unik setelah merge ≤ 10 — INV-021).
-- `sum(distributions[].amount)` + sisa pembulatan ∈ {0,1} yocto = `price` (INV-002). Ini dihitung on-chain; DB hanya menyalin event.
+- `fee + Σroyalti + seller == price` (internal, exact); `Σpayout ≤ price − fee` (INV-001/002). Ini dihitung on-chain; DB hanya menyalin event.
 
 ### `events_raw.event_json` — payload NEP-297
 

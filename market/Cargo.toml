@@ -26,3 +26,14 @@ near-sdk-contract-tools = { workspace = true }
 # bukan hanya wasm — tanpa ini `cargo test` gagal di compile_error near-sdk.
 [dev-dependencies]
 near-sdk = { workspace = true, features = ["unit-testing"] }
+
+# Suite sandbox dua-kontrak (TASK-006) hanya berjalan di Linux/macOS: binary sandbox
+# nearcore tidak dipublikasikan untuk Windows. Di-scope ke `cfg(unix)` supaya
+# `cargo test`/`cargo clippy` di Windows tidak ikut menarik dependency tree
+# near-workspaces (near-vm-runner/wasmtime) — gate lokal Windows tidak berubah.
+[target.'cfg(unix)'.dev-dependencies]
+near-workspaces = "0.23"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync"] }
+futures = "0.3"
+anyhow = "1"
+serde_json = "1"

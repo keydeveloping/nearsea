@@ -75,7 +75,7 @@ Event identity untuk dedup/indexing = **(receipt_id, event_index)** — lihat [.
 | `market_unpause` | market | `caller` (owner-DAO) |
 | `fee_update` | market | `old_fee_bps`, `new_fee_bps`, `caller` |
 | `treasury_update` | market | `old_treasury`, `new_treasury`, `caller` |
-| `treasury_withdraw` | market | `amount_yocto`, `treasury`, `caller` |
+| ~~`treasury_withdraw`~~ | — | **Dihapus ronde 23** — fee masuk treasury saat settlement, tidak ada akumulasi yang ditarik ([contracts/market.md](../contracts/market.md) §4a) |
 | `launchpad_phase_start` | NFT collection | `collection`, `phase_index`, `name`, `price_yocto`, `allocation`, `max_per_wallet`, `allowlist_required` |
 | `launchpad_mint` | NFT collection | `collection`, `phase_index`, `account_id`, `token_ids[]`, `price_yocto` |
 | `factory_collection_created` | factory | `collection` (sub-akun baru), `creator`, `royalty_bps`, `name` |
@@ -337,12 +337,6 @@ Contoh payload event yang sebelumnya open-by-design — nama final ditetapkan ro
 ```
 
 ```json
-{ "standard": "x-nearsea-market", "version": "1.0.0", "event": "treasury_withdraw",
-  "data": [ { "amount_yocto": "500000000000000000000000",
-              "treasury": "treasury.nearsea.testnet", "caller": "nearsea.testnet" } ] }
-```
-
-```json
 { "standard": "x-nearsea-market", "version": "1.0.0", "event": "factory_collection_created",
   "data": [ { "collection": "punks.nearsea.testnet", "creator": "artist.testnet",
               "royalty_bps": 500, "name": "Punks" } ] }
@@ -350,6 +344,7 @@ Contoh payload event yang sebelumnya open-by-design — nama final ditetapkan ro
 
 > `fee_update` / `treasury_update` / `market_unpause` memakai pola yang sama (`old_*`, `new_*`, `caller`).
 > `caller` = akun yang memicu (owner MVP / guardian `pause_callers` untuk pause di mainnet — ADR-013).
+> `treasury_withdraw` **dihapus ronde 23** — fee masuk treasury saat settlement ([contracts/market.md](../contracts/market.md) §4a).
 
 ## Event ordering & jaminan emisi
 

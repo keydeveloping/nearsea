@@ -34,8 +34,8 @@ Milestone: M0 | M1 | M2 | M3 | M4
 | TASK-002 | Kontrak NFT: NEP-171/177/178/181/297 + mint + events (near-sdk-contract-tools) + **`set_phases` minimal (satu fase publik)** — wajib agar `nft_mint` bisa dipanggil (mint = launchpad-aware, INV-017) | contract | P0 | 001 | features/marketplace + contracts/nft-collection.md | done | 4 | `cargo test` hijau; mint + transfer + events lolos TC-001 | M1 |
 | TASK-003 | Kontrak NFT: royalty NEP-199 (cap 10%) | contract | P0 | 002 | features/marketplace | done | 1 | Payout royalti ≤10% teruji (INV-003/027) | M1 |
 | TASK-004 | Kontrak market: storage NEP-145 + listing 2-tx + dual verification | contract | P0 | 002 | features/marketplace | done | 4 | List/cancel + storage deposit lolos (INV-020, TC-002) | M1 |
-| TASK-005 | Kontrak market: buy + nft_transfer_payout + resolve/refund (+ private listing & bundle — dgn TASK-010) | contract | P0 | 004 | features/marketplace.md + payments.md | todo | 5 | Buy sukses + refund + race 20 pembeli lolos (INV-001/016, TC-003/016) | M1 |
-| TASK-006 | Sandbox tests 2-kontrak **subset slice**: mint->list->buy->refund + race (TC-001/002/013/016/017/020/022/044/047/048) + INV slice (001..016, 023, 030, 031) | contract | P0 | 002-005 | testing/test-cases.md (Slice M1) | todo | 4 | Suite sandbox hijau; semua INV **slice** punya test (INV M1+ di-defer eksplisit) | M1 |
+| TASK-005 | Kontrak market: buy + nft_transfer_payout + resolve/refund (+ private listing & bundle — dgn TASK-010) | contract | P0 | 004 | features/marketplace.md + payments.md | done | 5 | Buy sukses + refund + race 20 pembeli lolos (INV-001/016, TC-003/016) | M1 |
+| TASK-006 | Sandbox tests 2-kontrak **subset slice**: mint->list->buy->refund + race (TC-001/002/013/016/017/020/022/044/047/048) + INV slice (001..016, 023, 030, 031) | contract | P0 | 002-005 | testing/test-cases.md (Slice M1) | done | 4 | Suite sandbox hijau; semua INV **slice** punya test (INV M1+ di-defer eksplisit) | M1 |
 | TASK-007 | Frontend: connect wallet (near-connect) | frontend | P0 | 001 | features/auth | done | 2 | Connect/disconnect + banner network jalan di testnet | M1 |
 | TASK-008 | Frontend: browse/listings/buy UI (Next.js + Tailwind, EN + i18n) — **tanpa prasyarat branding** (default Tailwind) | frontend | P0 | 007 | features/marketplace | in-progress | 5 | Browse->list->buy end-to-end via UI (jalur emas Playwright) | M1 |
 | TASK-008b | Sesi desain custom branding (warna, font, tokens) → design system | design | P0 (sebelum UI) | — | 04-ux-ui-spec.md | todo | 3 | Token warna/font + primitives `components/ui/` dipakai TASK-008/021 | M1+ |
@@ -66,24 +66,32 @@ Milestone: M0 | M1 | M2 | M3 | M4
 | TASK-033 | Error & notifikasi terpusat: registry kode error + pemetaan panic kontrak + kebijakan notifikasi (FE + API) | frontend/backend | P1 | 008 | development/error-handling | todo | 2 | Modul error terpusat dipakai; tidak ada pesan ad-hoc | M1+ |
 | TASK-034 | Prep scaling: app stateless + pooling + rencana read replica/LB (aktif saat trafik naik) | infra | P1 (fase 2) | 028 | architecture/scaling | todo | 3 | App stateless terverifikasi + rencana replica/LB tertulis | M2 |
 | TASK-035 | Audit dependensi: tinjau ulang advisory tanpa patch yang di-*ignore* (`--ignore-unfixable`) | infra | P2 | 001 | development/ci-cd.md §3 | todo | 0.5 | Advisory yang di-ignore punya keputusan tercatat: diperbaiki, diganti, atau diterima + alasan | M1+ |
+| TASK-036 | **Fix storage accounting `nft_transfer` atas token ter-approve (temuan F1)** — transfer gagal `ExcessiveUnlockError` bila penerima belum punya token; storage entry approval dibebaskan ke **penerima** padahal ditagih ke **owner** | contract | P0 | 002 | contracts/nft-collection.md §4/§7 + security/smart-contract-security-architecture.md §15 | todo | 2 | `nft_transfer` token ter-approve ke penerima terdaftar berhasil (regression test sandbox) | M1 |
 | TASK-037 | Tinjau `function-call-key-plugin` (dependency transitif `near-connect-hooks`): menyimpan private key function-call di `localStorage` | security | P0 | 007 | security/key-management.md + features/auth.md | todo | 1 | Keputusan tercatat: jalur dinonaktifkan permanen (tanpa `addFunctionCallKey`), atau dependency diganti, atau diterima + alasan tertulis. **Kode plugin terbukti ADA di bundle klien (ronde 26) — bukan alasan tree-shaking** | M1+ |
 | TASK-038 | Aktifkan lint yang tertunda setelah struktur `features/` ada: `import/order`, `no-restricted-imports` (larangan impor lintas-fitur), `react/jsx-no-useless-fragment` | frontend | P2 | 007 | development/code-standards.md §9 | done | 0.5 | Ketiga aturan aktif di `eslint.config.mjs` dan gate FE tetap hijau | M1+ |
-| TASK-039 | Advisory **RUSTSEC-2026-0285** (`rustls 0.23.43`, TLS 1.3 handshake) — perbaikan `>=0.23.45` bentrok dengan pin `aws-lc-rs =1.16.2` dari `near-crypto` | security/infra | P0 (blok PR #14) | 006 | development/ci-cd.md §3 + security/security-requirements.md | todo | 1 | Keputusan tercatat: konflik bump dipecahkan (mis. bump `near-sdk`/`near-crypto`), ATAU advisory diterima + alasan tertulis di `audit.toml` (bukan di-ignore diam-diam) | M1 |
+| TASK-039 | Advisory **RUSTSEC-2026-0285** (`rustls 0.23.43`, TLS 1.3 handshake) — perbaikan `>=0.23.45` bentrok dengan pin `aws-lc-rs =1.16.2` dari `near-crypto` | security/infra | P0 (blok PR #14) | 006 | development/ci-cd.md §3 | done | 1 | Keputusan tercatat: konflik bump dipecahkan (mis. bump `near-sdk`/`near-crypto`), ATAU advisory diterima + alasan tertulis di `audit.toml` (bukan di-ignore diam-diam) | M1 |
 
-> **TASK-039 (ronde 28, temuan saat mendaratkan tiket 07/08):** `cargo audit` di CI menemukan
-> **RUSTSEC-2026-0285** — `rustls 0.23.43` "TLS 1.3 handshake messages incorrectly accepted across
-> encryption level boundaries", perbaikan `>=0.23.45`. Advisory ini **baru terbit** di antara run CI
-> 06:48Z (hijau) dan 06:54Z (gagal) pada 2026-10-09, jadi bukan disebabkan perubahan proyek.
-> **Jangkauan terverifikasi**: `rustls` **hanya** terjangkau lewat
-> `nearsea-market → near-workspaces (dev-dependency) → near-sandbox → ureq → rustls`. Kontrak
-> produksi (`nearsea-nft-collection`, `nearsea-factory`) **tidak** menyentuhnya, dan `dev` sebelum
-> tiket 08 bahkan tidak punya `rustls` sama sekali — advisory ini muncul karena tiket 08 menambahkan
-> `near-workspaces`. **Kenapa belum diperbaiki**: `cargo update -p rustls --precise 0.23.45` gagal —
-> `rustls 0.23.45` menuntut `aws-lc-rs ^1.18`, sedangkan `near-crypto` (via `near-sdk` 5.29.1, jalur
-> produksi) mem-pin `aws-lc-rs = "=1.16.2"` **exact**. Rilis `near-crypto` stabil terbaru masih
-> `0.38.0-rc.3` (prerelease), jadi belum ada rilis stabil yang melonggarkan pin itu. Kebijakan repo
-> ([ci-cd.md](../docs/development/ci-cd.md) §3) melarang men-ignore advisory yang **punya** perbaikan,
-> jadi keputusan (pecahkan konflik bump vs terima dengan alasan tertulis) adalah milik user.
+> **TASK-039 `done` (ronde 28):** advisory **RUSTSEC-2026-0285** (`rustls 0.23.43` — "TLS 1.3 handshake
+> messages incorrectly accepted across encryption level boundaries"; perbaikan `>=0.23.45`) terbit
+> **di antara** dua run CI pada 2026-10-09 (06:48Z hijau, 06:54Z gagal), jadi bukan akibat perubahan
+> proyek. **Keputusan user: terima + catat eksplisit.** Entri ditulis di
+> [`.cargo/audit.toml`](../.cargo/audit.toml) (`[advisories] ignore`, dengan alasan + pelacak di
+> komentarnya) — **bukan** flag yang menyenyapkan audit; `cargo audit` membacanya otomatis dari root.
+> Kebijakan + jangkauan + blocker dicatat di [ci-cd.md](../docs/development/ci-cd.md) §3/§3a.
+> **Jangkauan terverifikasi** (`cargo tree -i rustls`): hanya rantai **test** —
+> `nearsea-market → [dev-dependency] near-workspaces → near-sandbox → ureq → rustls`. Kontrak produksi
+> (`nearsea-nft-collection`, `nearsea-factory`) **tidak** menyentuhnya, dan `dev` sebelum TASK-006
+> belum punya `rustls` sama sekali.
+> **Kenapa perbaikannya tidak bisa dipakai**: `cargo update -p rustls --precise 0.23.45` gagal —
+> `rustls 0.23.45` menuntut `aws-lc-rs ^1.18`, sedangkan `near-crypto` (via `near-sdk` 5.29.1, fitur
+> `unit-testing`) mem-pin `aws-lc-rs = "=1.16.2"` **exact**. Rilis `near-crypto` stabil terbaru masih
+> `0.37.4`; yang melonggarkan pin hanya prerelease `0.38.0-rc.3`.
+> **Jalan keluar bersih diuji, tidak ada**: (a) `near-workspaces` dengan fitur `native-tls` — **tidak
+> cukup**, `rustls` tetap masuk lewat jalur terpisah `near-sandbox → ureq` (perubahan di-revert);
+> (b) bump `near-sandbox`/`ureq` — keduanya sudah versi terbaru yang kompatibel; (c) bump
+> `near-crypto`/`near-sdk` — hanya prerelease.
+> **Tindak lanjut**: **hapus entri di `.cargo/audit.toml`** begitu upstream melonggarkan pin
+> `aws-lc-rs` sehingga `rustls >=0.23.45` bisa dipakai. Ini membuka blokir PR #14 (tiket 07/08).
 > **Dampak**: PR #14 (tiket 07/08) terblokir check wajib `Dependency audit` sampai ini diputuskan.
 
 > **TASK-031 `done` (ronde 18c):** repo dijadikan **publik** oleh user → branch protection tersedia (sebelumnya 403 "butuh GitHub Pro" saat private). Proteksi **aktif** di `dev`/`testnet`/`mainnet`: PR wajib, force-push & delete diblokir **termasuk admin** (`enforce_admins`), 5 required status checks, conversation resolution; `strict` (branch up-to-date) di testnet/mainnet. Tag protection via ruleset `protect-release-tags` (`contract-v*`/`web-v*`/`indexer-v*`: delete + update diblokir). **Bukti**: push langsung ke `dev` ditolak GitHub — `GH006 Protected branch update failed … Changes must be made through a pull request. 5 of 5 required status checks are expected.`
@@ -144,6 +152,74 @@ Milestone: M0 | M1 | M2 | M3 | M4
 > di [contracts/market.md](../docs/contracts/market.md) §2a + 5 dokumen lain disinkronkan. **Belum diklaim**:
 > paruh **buy** TC-002, TC-016/017 (race), TC-022, TC-048 (callback palsu), dan angka gas penuh — butuh
 > dua kontrak nyata (TASK-005/006). `fee_bps`/`treasury` di init juga ditunda ke TASK-005 (hanya dipakai settlement).
+
+> **TASK-005 `done` (ronde 23):** jalur settlement market di `market/src/lib.rs` — `buy` (tulis
+> `pending_purchases` **sebelum** optimistic removal, INV-031) → callback `process_purchase` `#[private]`
+> (dual verification saat settle; **stale dua kasus** INV-016 → refund + `market_stale_detected`; verifikasi
+> tak pasti → refund + restore `Sale`) → `nft_transfer_payout` (1 yocto, `max_len_payout = 10`) → callback
+> `resolve_purchase` `#[private]` (validasi payout UNTRUSTED: `1..=10` penerima, `amount > 0`,
+> `Σ ≤ harga−fee`; distribusi fee → treasury, royalti → receiver, residual → seller, kelebihan deposit →
+> buyer; payout invalid/promise gagal → refund penuh + restore `Sale`), `recover_stuck_purchase` +
+> `process_recovery` (permissionless, jeda `RECOVERY_DELAY_BLOCKS`), `update_fee_bps`/`update_treasury`
+> (owner-only, 1 yocto, cap `MAX_FEE_BPS`), `fee_bps`/`treasury` di init, view `get_fee_bps`/`get_treasury`/
+> `get_pending_purchase`, event `market_sale`/`market_stale_detected`/`market_purchase_recovered`/
+> `fee_update`/`treasury_update`. **Bukti**: 41 test baru (116 test workspace) — happy path dengan angka
+> fee/royalti/seller exact (Σ keluar == Σ masuk), kelebihan deposit refund, private listing, self-buy,
+> deposit kurang, `CONFLICT_SOLD` (sale/pending), stale dua kasus, verifikasi tak pasti, 6 jalur payout
+> invalid → refund, recovery permissionless (refund + restore / tanpa restore bila token pindah), paused,
+> dan anggaran gas `resolve_purchase` worst case. Gate lokal hijau: `fmt --check`, `clippy -D warnings`
+> (0 warning), `test --workspace`, build wasm 239 KB. **Dua koreksi dokumen (temuan saat implementasi):**
+> (1) **`withdraw_fees` dihapus** — fee ditransfer langsung ke treasury saat settlement (kontrak tidak
+> pernah memegang fee; menghapus temuan M7 + honeypot saldo) → didokumentasikan di
+> [contracts/market.md](../docs/contracts/market.md) §4a + 8 dokumen lain disinkronkan, TC-047 dialihkan
+> ke `update_fee_bps`/`update_treasury`; (2) **aturan `sisa ≤ 1 yocto` (INV-002) dibatalkan** — koleksi
+> mengembalikan **hanya royalti**, market menambahkan seller sebagai residual, jadi `harga − fee − Σpayout`
+> = proceeds seller (wajar besar), bukan dust → INV-002 dikoreksi + ~15 dokumen disinkronkan. **Belum
+> diklaim**: race TC-016/017 versi sandbox, TC-022, TC-048, dan angka gas terukur — semuanya butuh dua
+> kontrak nyata (TASK-006).
+
+> **TASK-006 `done` (ronde 24):** suite sandbox dua-kontrak di `market/tests/slice_sandbox.rs`
+> (**18 test**) + harness `market/tests/common/mod.rs`, men-deploy wasm koleksi + market **nyata** ke
+> sandbox chain (`near-workspaces`) dari `target/near/<crate>/` — jalur artefak yang sama dipakai gate
+> CI (sehingga CI membangun wasm + fixture **sebelum** test). Cakupan: TC-001, TC-002, TC-003 (via
+> fixture koleksi pihak ketiga `market/tests/fixtures/rogue-collection`), TC-006, TC-013, TC-016,
+> TC-017, TC-020, TC-022, TC-044, TC-047, TC-048, TC-053, TC-054, plus INV-014 dan INV-004/INV-027.
+> **Bukti**: `cargo test --workspace` = **134 test** (73 market unit + 18 sandbox + 42 koleksi +
+> 1 factory); `fmt --check` + `clippy -D warnings` bersih; 4 wasm ter-build.
+> **Batasan lingkungan**: sandbox hanya jalan di Linux/macOS (binary nearcore tidak dipublikasikan
+> untuk Windows) → suite di-`#![cfg(unix)]` dan dev-dependency di-scope `[target.'cfg(unix)'.dev-dependencies]`
+> supaya gate lokal Windows tidak berubah; di CI (`ubuntu-latest`) ia berjalan penuh.
+> **Deferred eksplisit (M1+)**: bundle, offers, launchpad penuh, pause, API/admin/notifikasi/E2E, dan
+> kalibrasi angka gas terukur (harness-nya sudah ada).
+
+> **TASK-036 (temuan F1, ronde 24 — saat TASK-006):** suite sandbox dua-kontrak menemukan bug nyata
+> di kontrak koleksi: **`nft_transfer` atas token yang masih di-approve gagal** dengan
+> `Storage accounting error: Account <receiver> cannot unlock more tokens than it has deposited`
+> (`ExcessiveUnlockError`), kecuali penerima **sudah** memegang token lain di koleksi yang sama.
+>
+> **Reproduksi (sandbox, 3 kasus, semuanya dengan penerima terdaftar NEP-145):**
+> (a) token ter-approve → penerima fresh **gagal**; (b) token ter-approve → penerima yang sudah punya
+> 1 token **berhasil**; (c) token ter-approve → penerima dengan saldo storage besar (2 Ⓝ) **gagal**;
+> (d) token **tanpa** approval → penerima fresh **berhasil**. Jalur `buy` (`nft_transfer_payout`)
+> **tidak terpengaruh** — buyer fresh berhasil di semua percobaan.
+>
+> **Akar masalah (hipotesis kuat, perlu konfirmasi saat perbaikan):** hook NEP-145
+> (`Nep171StorageAccountingHook`) menghitung selisih `storage_usage` di sekitar transfer dan
+> mengatribusikannya ke `action.receiver_id`. Saat token ter-approve dipindah, entry approval ikut
+> terhapus → `storage_usage` **turun** → kontrak memanggil `unlock_storage(receiver, kredit)`. Padahal
+> storage entry approval itu **ditagih ke owner** (via `PredecessorStorageAccountingHook` saat
+> `nft_approve`), bukan ke receiver. Receiver yang `available == total` (belum pernah lock apa pun)
+> langsung menabrak `ExcessiveUnlockError`. Kasus (b) lolos karena penerima sudah punya token → `total`
+> lebih besar dari `available` → masih ada ruang untuk kredit.
+>
+> **Dampak:** siapa pun yang memindahkan token lewat `nft_transfer` **standar NEP-171** (jalur non-market:
+> transfer hadiah, jual di tempat lain, migrasi wallet) gagal selama token masih di-approve ke market.
+> Jalan keluar sementara (dipakai TC-006): `nft_revoke` dulu, baru `nft_transfer`. Jalur uang NearSea
+> sendiri (`list` → `buy` via NEP-199) **tidak terkena** — itu sebabnya bug ini tidak terlihat di 116 test
+> unit sebelumnya. **Wajib diperbaiki sebelum M1 selesai** karena `nft_transfer` adalah method NEP-171 inti
+> dan menjadi prasyarat TC-006 yang sesungguhnya (stale karena kepemilikan pindah). Perbaikan yang
+> diusulkan: bebaskan storage entry approval ke **owner** (`action.sender_id`/owner saat itu), bukan ke
+> receiver — atau jangan pakai hook generik untuk jalur transfer.
 
 > **TASK-035 (dibuat ronde 18, TASK-001):** `braces <=3.0.3` (high, ReDoS) masuk lewat
 > `eslint-config-next → @next/eslint-plugin-next → fast-glob → micromatch`. Versi terbaru `braces` = 3.0.3

@@ -285,7 +285,7 @@ Error: > 10 token ditolak; salah satu token stale/dipindah/di-list terpisah → 
 | `buy` | `allowed_buyer == null ∨ predecessor == allowed_buyer` | `FORBIDDEN_BUYER` |
 | `buy` | `attached_deposit ≥ price` | `CHAIN_INSUFFICIENT_DEPOSIT` |
 | settle | `nft_token().owner_id == sale.owner_id` | `CONFLICT_STALE` |
-| resolve | `1 ≤ |payout| ≤ 10`; `Σpayout ≤ price−fee`; sisa ≤1 yocto | `CHAIN_REVERT` |
+| resolve | `1 ≤ |payout| ≤ 10`; `Σpayout ≤ price−fee`; setiap amount > 0 | `CHAIN_REVERT` |
 
 **Skema method**
 
@@ -733,7 +733,7 @@ Error: > 10 token ditolak; salah satu token stale/dipindah/di-list terpisah → 
 | `create_bundle` | Receiver unik merge ≤ 10 | Tolak |
 | `create_bundle` | Token ∉ bundle lain / tidak di-list terpisah | Tolak (INV-028) |
 | `buy_bundle` | Pre-validasi SEMUA item sebelum transfer pertama | Abort + refund (INV-025) |
-| `buy_bundle` | `Σpayout ≤ harga − fee`; sisa ≤ 1 yocto | Tolak + refund |
+| `buy_bundle` | `Σpayout ≤ harga − fee`; setiap amount > 0 | Tolak + refund |
 
 **Skema method**
 

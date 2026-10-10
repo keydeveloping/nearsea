@@ -26,8 +26,8 @@ Kebijakan lengkap: [docs/development/versioning-and-release.md](./docs/developme
 ### Added
 - **Slice M1 mendarat di `dev` (2026-10-09)** — seluruh branch bertumpuk yang sebelumnya hanya lokal
   di-push dan di-merge lewat PR berurutan: #11 (TASK-032), #12 (TASK-003), #13 (TASK-004),
-  #15 (TASK-007), #16 (TASK-008 + TASK-038). CI hijau di tiap langkah. **TASK-005/006 (PR #14) belum
-  mendarat** — check `Dependency audit` gagal karena advisory RUSTSEC-2026-0285 (lihat Security).
+  #15 (TASK-007), #16 (TASK-008 + TASK-038). CI hijau di tiap langkah. TASK-005/006 (PR #14) menyusul
+  setelah advisory RUSTSEC-2026-0285 diterima + dicatat (lihat Security).
 - Cargo workspace root (`Cargo.toml` + `Cargo.lock`) dengan anggota `contract/` (nearsea-nft-collection),
   `market/` (nearsea-market), `factory/` (nearsea-factory) — placeholder init + Owner (+Pause) + unit test.
 - Frontend `frontend/` — Next.js 16 App Router, TypeScript strict, Tailwind 4, ESLint 9 (+ aturan proyek),
@@ -67,16 +67,48 @@ Kebijakan lengkap: [docs/development/versioning-and-release.md](./docs/developme
   vitest 4 yang tidak lagi memakainya. **Satu advisory tanpa patch upstream** (`braces <=3.0.3`, high,
   ReDoS, lewat toolchain `eslint-config-next`) dikecualikan **eksplisit** di
   `frontend/pnpm-workspace.yaml` + dilacak sebagai TASK-035.
-- **Advisory baru memblokir PR #14 (2026-10-09): RUSTSEC-2026-0285** — `rustls 0.23.43`, "TLS 1.3
-  handshake messages incorrectly accepted across encryption level boundaries"; perbaikan `>=0.23.45`.
-  Terbit di antara dua run CI hari itu (06:48Z hijau, 06:54Z gagal), jadi bukan akibat perubahan proyek.
-  Terjangkau **hanya** lewat dev-dependency `nearsea-market → near-workspaces → near-sandbox → ureq`;
-  kontrak produksi tidak menyentuhnya. Perbaikan langsung gagal karena `rustls 0.23.45` menuntut
-  `aws-lc-rs ^1.18` sementara `near-crypto` mem-pin `aws-lc-rs = "=1.16.2"`. **Belum diputuskan** —
-  dilacak sebagai **TASK-039**.
+- **Advisory RUSTSEC-2026-0285 diterima + dicatat eksplisit (TASK-039, 2026-10-09)** — `rustls 0.23.43`,
+  "TLS 1.3 handshake messages incorrectly accepted across encryption level boundaries"; perbaikan
+  `>=0.23.45`. Terbit di antara dua run CI hari itu (06:48Z hijau, 06:54Z gagal), jadi bukan akibat
+  perubahan proyek. Terjangkau **hanya** lewat dev-dependency `nearsea-market → near-workspaces →
+  near-sandbox → ureq`; kontrak produksi tidak menyentuhnya. Perbaikan langsung gagal karena
+  `rustls 0.23.45` menuntut `aws-lc-rs ^1.18` sementara `near-crypto` mem-pin `aws-lc-rs = "=1.16.2"`
+  exact. Jalan keluar bersih sudah diuji dan tidak ada (`native-tls` tidak cukup; `near-sandbox`/`ureq`
+  sudah terbaru; `near-crypto` hanya prerelease). **Keputusan: terima + catat** di
+  [`.cargo/audit.toml`](.cargo/audit.toml) dengan alasan + pelacak — bukan di-ignore diam-diam.
+  **Tindak lanjut**: hapus entri begitu upstream melonggarkan pin `aws-lc-rs`.
 
 ### Contract (kontrak NFT + market + factory)
 ### Added
+- **Suite sandbox dua-kontrak (TASK-006, 2026-10-08)** — `market/tests/slice_sandbox.rs` (**18 test**)
+  + harness `market/tests/common/mod.rs` men-deploy wasm **koleksi + market nyata** ke sandbox chain
+  (`near-workspaces`), bukan mock, dari `target/near/<crate>/`. Membuktikan tesis slice di rantai
+  sungguhan: jalur bahagia penuh dengan angka exact (fee 2% → treasury, royalti 5% → kreator, proceeds
+  seller = residual; **NFT terbukti tetap di wallet seller selama listing** — non-custodial diasersi
+  on-chain), **race 20 pembeli → tepat 1 menang** dengan 19 deposit kembali penuh (hanya gas hangus),
+  stale dua kasus (kepemilikan pindah **dan** approval dicabut) → refund penuh + `market_stale_detected`,
+  **payout tidak valid dari koleksi pihak ketiga** → refund penuh + listing dipulihkan, recovery
+  pembelian nyangkut permissionless (TC-054), plus TC-001/013/017/020/022/044/047/048 dan
+  INV-004/014/027. Crate fixture **TEST** baru `market/tests/fixtures/rogue-collection/` (koleksi
+  pihak ketiga "nakal" untuk TC-003) — tidak pernah ikut rilis. `ci.yml` kini **membangun wasm +
+  fixture sebelum test**. Suite di-`#![cfg(unix)]` (binary sandbox nearcore tidak dipublikasikan untuk
+  Windows) dengan dev-dependency di-scope `[target.'cfg(unix)'.dev-dependencies]` supaya gate lokal
+  Windows tidak berubah.
+- **Market buy + settlement + refund (TASK-005, 2026-10-08)** — jalur uang `market/src/lib.rs`. `buy`
+  menulis `pending_purchases` **sebelum** optimistic removal (INV-031), lalu callback `#[private]`
+  `process_purchase` menjalankan dual verification **saat settle** (stale dua kasus INV-016 → refund
+  penuh + `market_stale_detected`; verifikasi tak pasti → refund + restore `Sale`), memanggil
+  `nft_transfer_payout` (1 yocto, `max_len_payout = 10`), dan callback `#[private]` `resolve_purchase`
+  memvalidasi payout **UNTRUSTED** (`1..=10` penerima, `amount > 0`, `Σ ≤ harga−fee`) lalu
+  mendistribusikan fee → treasury, royalti → receiver, residual → seller, kelebihan deposit → buyer;
+  payout invalid atau promise gagal → refund penuh + restore `Sale` (SEC-ORDER-001). Ditambah
+  `recover_stuck_purchase` + `process_recovery` (permissionless setelah `RECOVERY_DELAY_BLOCKS` — setiap
+  deposit punya jalur keluar tanpa governance, INV-031), `update_fee_bps`/`update_treasury` (owner-only,
+  1 yocto, cap `MAX_FEE_BPS` — INV-004), `fee_bps`/`treasury` di init, view
+  `get_fee_bps`/`get_treasury`/`get_pending_purchase`, dan event
+  `market_sale`/`market_stale_detected`/`market_purchase_recovered`/`fee_update`/`treasury_update`.
+  **Belum termasuk**: `remove_stale_listing` (TASK-022), offers/bundle (TASK-009/010), pengukuran gas
+  sandbox + race TC-016/017 (TASK-006).
 - **Market listing 2-tx + storage NEP-145 (TASK-004, 2026-10-08)** — `market/src/lib.rs` kini punya jalur
   listing: `list_nft_for_sale` (deposit = storage NEP-145, **bukan** 1 yocto) yang **tidak percaya klaim
   pemanggil** — kontrak mengirim dua view call ke koleksi (`nft_token` → kepemilikan, `nft_is_approved` →
@@ -129,7 +161,26 @@ Kebijakan lengkap: [docs/development/versioning-and-release.md](./docs/developme
   `nft_transfer_payout` NEP-199 (TASK-003), fase bebas penuh + Pausable (TASK-020).
 - Placeholder crate (init + owner/pause) — surface market/factory menyusul di TASK-004/005/012.
 
+### Changed
+- **Fee dibayar langsung ke treasury di settlement (TASK-005, 2026-10-08)** — `withdraw_fees` dan event
+  `treasury_withdraw` **dihapus**; fee tidak pernah tertahan di kontrak, sehingga tidak ada akuntansi
+  solvensi fee-vs-escrow-vs-storage yang perlu dijaga (temuan M7 tertutup) dan tidak ada honeypot saldo
+  fee. Owner-only config kini `update_fee_bps`/`update_treasury`
+  ([contracts/market.md](./docs/contracts/market.md) §4a; TC-047 dialihkan).
+- **Aturan `sisa ≤ 1 yocto` (INV-002) dibatalkan (TASK-005, 2026-10-08)** — koleksi mengembalikan **hanya
+  royalti** dan market menambahkan seller sebagai residual, sehingga `harga − fee − Σpayout` = **proceeds
+  seller** (wajar besar, mis. 93% harga saat royalti 5%), bukan dust. Yang divalidasi tetap
+  `Σpayout ≤ harga − fee`, `amount > 0`, `1 ≤ len ≤ 10`. Aturan lama berasal dari model tutorial
+  (RESEARCH.md §10.5) yang tidak dipakai NearSea.
+
 ### Fixed
+- **Temuan F1 dari suite sandbox (TASK-006, 2026-10-08)** — `nft_transfer` atas token yang **masih
+  di-approve** gagal `Storage accounting error: … cannot unlock more tokens than it has deposited`
+  (`ExcessiveUnlockError`) bila penerima belum memegang token lain di koleksi yang sama. Diduga hook
+  NEP-145 membebaskan storage entry approval ke **receiver**, padahal entry itu ditagih ke **owner**.
+  **Belum diperbaiki** — dicatat sebagai **TASK-036** (P0, wajib selesai sebelum M1 ditutup); jalur uang
+  NearSea (`list` → `buy` via NEP-199) tidak terkena, dan TC-006 memakai urutan `nft_revoke` →
+  `nft_transfer` sebagai jalan keluar sementara.
 - **Koreksi spesifikasi `nft_revoke_token` (TASK-004, 2026-10-08)** — 5 dokumen menyebut `remove_sale`
   memanggil `nft_revoke_token` "sebagai approved account". **Method itu tidak ada di NEP-178**: standar
   hanya punya `nft_revoke`/`nft_revoke_all`, keduanya **owner-only** ("MUST panic if called by someone

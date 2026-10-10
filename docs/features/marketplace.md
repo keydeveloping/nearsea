@@ -326,8 +326,11 @@ pub fn cancel_bundle(&mut self, bundle_id: u64)
 | `storage_deposit` | `storage_deposit(account_id: Option<AccountId>)` | Ⓝ sesuai kebutuhan | NEP-145; `account_id` null → pemanggil. |
 | `storage_withdraw` | `storage_withdraw(amount: Option<U128>)` | 1 yocto | NEP-145; tetap diizinkan saat `paused`. |
 | `nft_mint` | `nft_mint(...)` | harga fase + storage | Launchpad; exact-match deposit (INV-018). |
-| `withdraw_fees` | `withdraw_fees()` | 1 yocto | Owner-only (MVP) / DAO (mainnet); event ⏳. |
+| `update_fee_bps` / `update_treasury` | `update_fee_bps(fee_bps: u16)` / `update_treasury(treasury)` | 1 yocto | Owner-only (MVP) / DAO (mainnet); `fee_bps ≤ MAX_FEE_BPS`; event `fee_update`/`treasury_update`. |
+| `recover_stuck_purchase` | `recover_stuck_purchase(nft_contract_id, token_id)` | 1 yocto | **Siapa pun** (permissionless) setelah `RECOVERY_DELAY_BLOCKS`; refund penuh ke buyer (INV-031). |
 | `pause` / `unpause` | `pause()` / `unpause()` | 1 yocto | Owner (MVP) / guardian `pause_callers` (mainnet). |
+
+> **Tidak ada `withdraw_fees`.** Fee ditransfer langsung ke treasury saat settlement — market tidak pernah memegang dana fee ([contracts/market.md](../contracts/market.md) §4a, koreksi ronde 23).
 
 ## Event per Aksi (ringkas)
 
@@ -460,12 +463,12 @@ remove_sale lalu list ulang  →  nft_revoke(market) dulu (approval lama masih a
 | Penerima royalti unik = 11 | merge > 10 | Tolak saat `create_bundle` | — |
 | Royalti per token tepat 10% | rate = 1000 bps | Diterima (cap inklusif) | — |
 | Royalti per token > 10% | rate = 1001 bps | Tolak → refund | `CHAIN_REVERT` |
-| Sisa pembulatan | sisa = 1 yocto | Diterima (INV-002) | — |
-| Sisa pembulatan > 1 | sisa = 2 yocto | Tolak → refund | `CHAIN_REVERT` |
+| Payout melebihi plafon | Σpayout > harga − fee | Tolak → refund | `CHAIN_REVERT` |
+| Payout kosong / >10 penerima / amount 0 | struktur payout tidak sah | Tolak → refund | `CHAIN_REVERT` |
 | Offer tepat minimum | `attached = 10000000000000000000000` | Diterima | — |
 | Offer kedua buyer sama | 1 offer aktif sudah ada | Tolak (INV-024) | `CONFLICT_OFFER_EXISTS` |
 
-- Boundary "tepat di batas" (min price, 10 token, 10 receiver, 10% royalti, 1 yocto) **selalu inklusif** kecuali dinyatakan lain.
+- Boundary "tepat di batas" (min price, 10 token, 10 receiver, 10% royalti, Σpayout = harga − fee) **selalu inklusif** kecuali dinyatakan lain.
 - `INVALID_PRICE` **terdaftar** di registry [error-handling.md](../development/error-handling.md) §3.
 
 ## Error Cases (pesan user-facing)

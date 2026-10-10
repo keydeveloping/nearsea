@@ -11,13 +11,13 @@
 | Ⓝ escrow offer (dana buyer) | Di dalam market contract, per `OfferKey` | MVP+ | State on-chain; refund via `cancel_offer`/expire; validasi payout di resolve callback |
 | Ⓝ pembayaran (buy now) | Melewati market contract dalam 1 receipt settlement | MVP+ | Promise gagal → auto-refund ke market; **refund ke buyer via resolve callback** (SEC-ORDER-001/002) |
 | Proceeds seller | Transfer langsung dari market → seller (bukan saldo tertahan) | MVP+ | Payout validation (≤ harga, ≤10 penerima) |
-| Royalti kreator | Bagian dari payout on-chain | MVP+ | `nft_transfer_payout`, batas 10 akun, sisa ≤ 1 yocto |
-| Fee platform 2% | Treasury market contract | MVP+ | `fee_bps` owner-only + **cap immutable MAX_FEE_BPS** (SEC-CONTRACT-004) |
+| Royalti kreator | Bagian dari payout on-chain | MVP+ | `nft_transfer_payout`, batas 10 penerima, `amount > 0`, Σ ≤ harga−fee |
+| Fee platform 2% | Ditransfer **langsung ke akun treasury** saat settlement (tidak tertahan di kontrak) | MVP+ | `fee_bps` owner-only + **cap immutable MAX_FEE_BPS** (SEC-CONTRACT-004); market tidak pernah custody fee (ronde 23 — [contracts/market.md](../contracts/market.md) §4a) |
 | FT pembayaran (NEP-141) | Belum ada | Fase 2 | `ft_on_transfer` predecessor whitelist + refund unused |
-| Dana treasury (akumulasi fee) | Saldo market contract | MVP+ | Withdraw `withdraw_fees` owner-only (MVP) / via DAO (mainnet) — PROPOSED + OPEN QUESTION kebijakan (access-control-matrix.md) |
+| Dana treasury (fee) | **Tidak ada** — fee masuk akun treasury saat settlement | — | Tidak ada akumulasi di kontrak ⇒ tidak ada `withdraw_fees`/honeypot saldo fee (ronde 23) |
 | Insurance fund (0.1% dari fee) | Market contract / akun terpisah | **Mainnet** | G7 default: dipakai hanya untuk kompensasi insiden terverifikasi, pencairan via proposal Sputnik DAO |
 
-**FACT**: market contract TIDAK pernah memegang NFT user (approval model). Di MVP, satu-satunya dana pihak ketiga yang dipegang kontrak = escrow offer aktif + akumulasi fee treasury; di mainnet ditambah **insurance fund** (G7).
+**FACT**: market contract TIDAK pernah memegang NFT user (approval model). Di MVP, satu-satunya dana pihak ketiga yang dipegang kontrak = escrow offer aktif (fase M1+) + deposit yang sedang settle (`pending_purchases`, transien — INV-031); fee tidak pernah tertahan di kontrak (ronde 23). Di mainnet ditambah **insurance fund** (G7).
 
 ## 2. Authorization Assets
 
@@ -160,7 +160,7 @@ Data app            : User ──(JSON+sig)──► API ──► PostgreSQL (p
 | NFT user | SEC-ORDER-004, SEC-CONTRACT-003/005 | dual verification, callback privat, payout tervalidasi |
 | Escrow offer | SEC-ORDER-002 | refund hanya ke `buyer_id` |
 | Dana settlement | SEC-ORDER-001, SEC-CONTRACT-005 | atomic resolve + payout ≤ harga−fee |
-| Royalti | SEC-CONTRACT-005 | ≤10 penerima, sisa ≤1 yocto |
+| Royalti | SEC-CONTRACT-005 | ≤10 penerima, `amount > 0`, Σ ≤ harga−fee |
 | Fee treasury | SEC-CONTRACT-004 | `fee_bps` ≤ `MAX_FEE_BPS` |
 | Insurance fund | SEC-ORDER-001 | kompensasi G7 (pencairan DAO) |
 | Owner/deploy key | SEC-KEY-001/002 | key tidak di app/CI/git; mainnet DAO 2-of-3 |

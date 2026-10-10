@@ -23,7 +23,7 @@ Kreator meluncurkan koleksi NFT **tanpa izin/kurasi platform**: pilih slug, isi 
                (cek ketersediaan; slug terpakai → pilih lain — lihat Error/Edge Cases)
 2. METADATA  → nama, simbol, deskripsi, media (media = IPFS; on-chain hanya URL + hash)
 3. ROYALTI   → royalty_bps ≤ 1000 (cap 10%/token — INV-027); payout ≤ 10 receiver,
-               sisa pembulatan ≤ 1 yocto (validasi payout mengikuti [nft-collection.md](../contracts/nft-collection.md) §Royalti)
+               Σpayout ≤ harga−fee (validasi payout mengikuti [nft-collection.md](../contracts/nft-collection.md) §Royalti)
 4. PHASES    → berapa pun fase (✅ DIPUTUSKAN ADR-008); per fase:
                name · price_yocto · allocation · max_per_wallet ·
                allowlist_required · starts_at / ends_at

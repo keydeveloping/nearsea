@@ -203,7 +203,7 @@ fn royalty_payout(&self, balance: U128) -> Payout {
 
 Bukti unit (11 test): perpindahan kepemilikan + payout kreator, batas ≤10% untuk 4 rate × 6 basis, dust (`19` → `0`, `20` → `1` di 500 bps), tepat 10% di cap, turunan dari konfigurasi level kontrak, wajib 1 yocto, penolakan pengirim tanpa approval, token tidak ada, `max_len_payout` terlalu kecil, dan approval lama invalid setelah transfer (INV-011).
 
-- **Belum dibuktikan di tiket ini:** TC-003 versi sandbox — yaitu validasi payout di sisi **market** (≥1 penerima, Σ ≤ harga−fee, sisa ≤1 yocto, refund saat invalid) dan angka gas penuh (butuh dua kontrak). Sama seperti TC-001 di TASK-002, bagian yang bisa dibuktikan di unit sudah dibuktikan di unit.
+- **Belum dibuktikan di tiket ini:** TC-003 versi sandbox — yaitu validasi payout di sisi **market** (≥1 penerima, amount > 0, Σ ≤ harga−fee, refund saat invalid) dan angka gas penuh (butuh dua kontrak). Sama seperti TC-001 di TASK-002, bagian yang bisa dibuktikan di unit sudah dibuktikan di unit.
 
 ---
 

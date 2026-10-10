@@ -5,7 +5,7 @@
 ## Dana & payout
 
 - **INV-001**: Total Ⓝ keluar dari settlement ≤ Ⓝ masuk pada transaksi tersebut (fee + royalti + proceeds ≤ attached deposit).
-- **INV-002**: `sum(payout) ≤ harga − fee` dan sisa pembulatan ∈ {0, 1} yocto; pelanggaran → tolak + refund buyer.
+- **INV-002**: `Σpayout ≤ harga − fee` (tidak ada pembayaran melebihi plafon); pelanggaran → tolak + refund buyer. **Koreksi ronde 23:** klausa lama "sisa pembulatan ∈ {0,1} yocto" **dibatalkan** — ia berasal dari model tutorial (RESEARCH.md §10.5) di mana `nft_transfer_payout` mengembalikan **seluruh** distribusi (seller + royalti), sehingga `max_pay − Σpayout` hanya sisa pembulatan. NearSea memakai model berbeda: koleksi mengembalikan **hanya royalti** ([contracts/nft-collection.md](../contracts/nft-collection.md) §4) dan market menambahkan seller sebagai residual ([contracts/market.md](../contracts/market.md) §3), jadi `max_pay − Σpayout` = **proceeds seller** (wajar besar, mis. 93% harga saat royalti 5%). Meng-`assert sisa ≤ 1` akan menolak setiap penjualan normal dan bertentangan dengan TC-002 + AC TASK-005. Aritmetika internal tetap exact: `fee + Σroyalti + seller == harga`.
 - **INV-003**: Payout memiliki 1..10 penerima; tidak ada duplikat receiver (**DEFAULT: digabung**).
 - **INV-004**: `fee_bps` hanya boleh ≤ `MAX_FEE_BPS`. **CATATAN NEAR**: `const` di kode TIDAK kebal upgrade — perubahan `MAX_FEE_BPS` hanya mungkin via upgrade yang lolos governance (mainnet: Sputnik DAO 2-of-3 + timelock, ADR-013) dan terverifikasi reproducible build (NEP-330). Property test: pada kode yang deployed, attempt `update_fee_bps > 500` selalu revert.
 - **INV-005**: Escrow offer hanya bisa keluar sebagai: (a) refund ke `offer.buyer_id`, atau (b) distribusi saat `accept_offer` sukses. Tidak ada jalur ketiga.
@@ -70,7 +70,7 @@
 | INV | Predikat formal (code-like) | Test ID | SEC-ID | Prioritas |
 |---|---|---|---|---|
 | INV-001 | `Σ(amount_out) ≤ attached_deposit` | TC-002, TC-022, TC-040 | SEC-ORDER-001, SEC-CONTRACT-005 | P0 |
-| INV-002 | `Σ(payout) ≤ price − fee ∧ (price − fee − Σpayout) ∈ {0,1}` | TC-003, TC-022 | SEC-CONTRACT-005 | P0 |
+| INV-002 | `Σ(payout) ≤ price − fee`; residual `price − fee − Σpayout` → seller (tanpa batas atas — koreksi ronde 23) | TC-003, TC-022 | SEC-CONTRACT-005 | P0 |
 | INV-003 | `1 ≤ |unique(receivers)| ≤ 10 ∧ ∀p ∈ payout: p.amount > 0` (duplikat digabung) | TC-003, TC-009 | SEC-CONTRACT-005 | P0 |
 | INV-004 | `fee_bps ≤ MAX_FEE_BPS (500)` | unit + fuzz | SEC-CONTRACT-004 | P0 |
 | INV-005 | `escrow_out ∈ { refund(offer.buyer_id), distribute(accept_offer) }` | TC-004, TC-005, TC-018, TC-019 | SEC-ORDER-002 | P0 |
@@ -104,6 +104,16 @@
 - **Test "unit"/"property"/"fuzz"** = belum ada TC bernomor; dibuktikan di level unit/property/fuzz (lihat §Cara diverifikasi nanti). TC bernomor = bukti sandbox/API/E2E.
 - Baris tanpa SEC-ID = aturan bisnis terkunci (INV-023/024/026/028/030) — tetap wajib diuji, tetapi tidak dipetakan ke requirement keamanan register.
 - **P0** = wajib hijau sebelum gate fasenya; **P1** = wajib sebelum mainnet gate.
+- **Bukti sandbox dua-kontrak (TASK-006, ronde 24):** `market/tests/slice_sandbox.rs` men-deploy
+  koleksi + market nyata dan membuktikan INV-001, INV-002, INV-003, INV-004, INV-007, INV-008,
+  INV-011, INV-014, INV-015, INV-016, INV-019, INV-020, INV-023, INV-026, INV-027, INV-030, INV-031
+  pada rantai sungguhan (bukan mock) — lihat [test-cases.md](../testing/test-cases.md) §blok
+  "Sudah dibuktikan di level sandbox dua-kontrak". INV-005/006/009/010/012/013/017/018/021/022/024/
+  025/028/029 tetap dibuktikan di level unit atau di-defer ke M1+ (dinyatakan eksplisit, bukan
+  dibiarkan tanpa jejak).
+- **Temuan F1 (TASK-036):** suite sandbox menemukan `nft_transfer` atas token yang **masih di-approve**
+  gagal `ExcessiveUnlockError` (storage-accounting NEP-145) — bug kontrak koleksi, bukan pelanggaran
+  INV di atas; dicatat di [tasks/backlog.md](../../tasks/backlog.md) TASK-036.
 
 ## Cara diverifikasi nanti (tooling DIPUTUSKAN — riset 2026-10-01)
 

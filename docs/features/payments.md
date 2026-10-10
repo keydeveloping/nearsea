@@ -28,24 +28,32 @@
 function settle(price, fee_bps, nft_payout[]):
   # 1) fee platform — dipotong lebih dulu
   fee      = floor(price * fee_bps / 10_000)        # fee_bps = 200 (2%); cap MAX_FEE_BPS = 500
-  max_pay  = price - fee                            # plafon payout (seller + royalti)
+  max_pay  = price - fee                            # plafon payout (royalti + seller)
 
   # 2) payout dari NFT contract (NEP-199, UNTRUSTED) — validasi ketat
   assert 1 <= len(nft_payout) <= 10                 # INV-003/021
   assert receiver unik                              # duplikat → digabung dulu (INV-003 DEFAULT: merge)
   assert setiap amount > 0
   Σpay     = sum(nft_payout[i].amount)
-  assert Σpay <= max_pay                            # INV-002
-  sisa     = max_pay - Σpay
-  assert sisa in {0, 1}                             # toleransi dust ≤1 yocto (INV-002)
+  assert Σpay <= max_pay                            # INV-002 (tidak boleh melebihi plafon)
 
-  # 3) seller menerima residual (sisa pembulatan → seller, selalu ≥0)
-  seller   = max_pay - Σpay
+  # 3) seller menerima SELURUH residual — bukan hanya dust (lihat §Koreksi ronde 23)
+  seller   = max_pay - Σpay                         # ≥ 0 karena Σpay ≤ max_pay
   distributions = nft_payout + [ (seller, seller), (treasury, fee) ]
   assert sum(distributions.amount) == price         # internal, exact
 ```
 
-- **Aturan pembulatan**: setiap rate (fee & royalti) di-`floor` independen; **sisa selalu jatuh ke seller** sehingga `Σdistribusi == price` persis. Toleransi `sisa ∈ {0,1}` di §2 hanya untuk memvalidasi payout **eksternal** dari NFT contract (bukan untuk aritmetika internal).
+- **Koreksi ronde 23 — residual seller BUKAN dust.** Sebelumnya §ini meng-`assert sisa in {0, 1}`.
+  Itu berasal dari model tutorial (RESEARCH.md §10.5) di mana kontrak NFT mengembalikan **seluruh**
+  distribusi (seller + royalti) sehingga `max_pay − Σpay` hanya sisa pembulatan. **NearSea tidak begitu**:
+  kontrak koleksi mengembalikan **hanya royalti kreator** ([contracts/nft-collection.md](../contracts/nft-collection.md) §4 —
+  `Payout::from([(creator_id, amount)])`), dan market yang menambahkan seller ke payout map
+  ([contracts/market.md](../contracts/market.md) §3). Akibatnya `max_pay − Σpay` = **proceeds seller**,
+  yang wajar bernilai besar (mis. royalti 5% → residual 93% harga). Meng-`assert sisa ≤ 1 yocto` akan
+  **menolak setiap penjualan normal** — bertentangan dengan TC-002 dan AC TASK-005.
+  Yang divalidasi market tetap: `Σpay ≤ max_pay`, `amount > 0`, `1 ≤ len ≤ 10`.
+- **Aturan pembulatan**: setiap rate (fee & royalti) di-`floor` independen; **seluruh residual jatuh ke
+  seller** sehingga `fee + Σroyalti + seller == price` persis (aritmetika internal, exact).
 - Royalti **per token** di-cap 10% dari harga wajarnya (INV-027); agregat bundle = penjumlahan tanpa cap.
 - Validasi gagal di langkah mana pun → tolak + **refund penuh** ke buyer (`resolve_purchase`, INV-001..003).
 
@@ -60,15 +68,21 @@ function settle(price, fee_bps, nft_payout[]):
 | Plafon payout | — | `price − fee` | `9800000000000000000000000` |
 | Royalti A | 5% (500 bps) | `floor(10 Ⓝ × 500 / 10000)` | `500000000000000000000000` |
 | Royalti B | 2.5% (250 bps) | `floor(10 Ⓝ × 250 / 10000)` | `250000000000000000000000` |
-| Seller (residual) | — | `max_pay − royalti A − royalti B` | `9050000000000000000000000` |
-| **Sisa pembulatan** | — | `max_pay − Σpayout` | **0** (≤1 yocto ✓) |
+| Σpayout (dari koleksi) | — | A + B | `750000000000000000000000` |
+| Seller (residual) | — | `max_pay − Σpayout` | `9050000000000000000000000` |
 
-- Verifikasi: `fee + royalti A + royalti B + seller = 0.2 + 0.5 + 0.25 + 9.05 = 10 Ⓝ` ✓
+- Verifikasi: `fee + royalti A + royalti B + seller = 0.2 + 0.5 + 0.25 + 9.05 = 10 Ⓝ` ✓ (exact)
 - `Σpayout` (A + B) = `750000000000000000000000` ≤ `max_pay` ✓; penerima = 2 ≤ 10 ✓.
+- Residual seller = 9.05 Ⓝ — **besar dan sah**, bukan pelanggaran INV-002.
 
-### Contoh sisa 1 yocto (dust)
+### Contoh dust pada sisi royalti (bukan pada residual)
 
-Bila payout dari NFT contract menghasilkan `Σpay = max_pay − 1` (pembulatan di sisi kontrak NFT), market **menerima** (sisa = 1 yocto, batas inklusif INV-002). Satu yocto tersebut **tidak terdistribusi** (dust, tetap di kontrak ≤1 yocto — INV-001: total keluar ≤ total masuk). Bila `sisa ≥ 2` → tolak + refund.
+Dust hanya muncul di aritmetika **rate**: `royalti = floor(basis × rate / 10_000)` bisa menghasilkan `0`
+bila basis di bawah granularitas rate (mis. `< 20` yocto di 500 bps). Karena `amount == 0` ditolak
+(`∀p.amount > 0`, INV-003), token seperti itu **tidak bisa di-settle** → ditolak + refund
+([contracts/nft-collection.md](../contracts/nft-collection.md) §4 "Konsekuensi dust"). Praktis tak
+terjangkau (harga NFT tidak pernah se-fraksi itu). Tidak ada jalur di mana market menahan dust ≤1 yocto:
+seluruh `max_pay − Σpay` masuk ke seller.
 
 ## Algoritma Merge Multi-Receiver (Bundle)
 
@@ -178,9 +192,9 @@ bila kedua token ter-list 6 Ⓝ dan 4 Ⓝ, basis = harga listing masing-masing):
 
 > Chain = otoritas; DB/API hanya proyeksi (SEC-INDEX-001). Tidak ada backend payment (ADR-010).
 
-- **Invarian yang direkonsiliasi tiap settlement**: `fee + Σroyalti + seller == price` (internal, exact) dan `Σpayout ≤ price − fee`, sisa ≤1 yocto (INV-001/002).
+- **Invarian yang direkonsiliasi tiap settlement**: `fee + Σroyalti + seller == price` (internal, exact) dan `Σpayout ≤ price − fee` (INV-001/002).
 - **Sumber rekonsiliasi**: event `market_sale` / `market_offer_accept` + `(receipt_id, event_index)` — bukan `tx_hash` (satu tx bisa banyak event). Skema event dimiliki [webhooks.md](../api/webhooks.md).
-- **Treasury**: akumulasi fee = saldo market contract; ditarik owner via `withdraw_fees` (MVP) / DAO (mainnet). Alamat treasury ⏳ open-by-design (sementara = owner).
+- **Treasury**: fee ditransfer **langsung ke `treasury` di dalam settlement yang sama** (dikonfirmasi ronde 23 saat TASK-005 — model akumulasi + `withdraw_fees` dibatalkan; lihat [contracts/market.md](../contracts/market.md) §4a). Market contract **tidak pernah** memegang dana fee, sehingga tidak ada akuntansi solvensi fee-vs-escrow-vs-storage yang perlu dijaga. Alamat treasury diisi saat deploy (§MVP); default = owner market.
 - **Deteksi anomali**: reconcile `sum(payout) == harga − fee` tiap settle; **alert bila selisih > 1 yocto** ([catastrophic-failure-scenarios.md](../security/catastrophic-failure-scenarios.md)).
 - **Fase 2 (indexer)**: proyeksi `sales.payout` (jsonb) disalin dari event; query per-penerima dinormalisasi = ⏳ open-by-design.
 
@@ -192,18 +206,21 @@ bila kedua token ter-list 6 Ⓝ dan 4 Ⓝ, basis = harga listing masing-masing):
 - **Jumlah deposit** per FT ⏳ open-by-design (bergantung storage FT; dibayar saat pendaftaran/whitelist FT).
 - `ft_on_transfer` validasi `predecessor == FT contract` **dan** FT ada di whitelist; jika tidak → tolak (refund otomatis via `ft_resolve_transfer`).
 - Payout FT + royalti banyak akun harus dipangkas — batas **10 penerima** tetap berlaku (batas gas sehat, RESEARCH.md §11).
-- Sisa pembulatan FT: standar NEP-141 mengembalikan `amount` sisa ke pengirim via `ft_resolve_transfer` (bukan dust ≤1 yocto seperti NEAR) — detail ⏳ saat implementasi fase 2.
+- Sisa pembulatan FT: standar NEP-141 mengembalikan `amount` sisa ke pengirim via `ft_resolve_transfer` (bukan seperti NEAR yang residual-nya masuk seller) — detail ⏳ saat implementasi fase 2.
 
 ## Error Cases
 
 | Kasus | Perlakuan |
 |---|---|
-| Payout > harga / kosong / > 10 penerima | tolak → refund buyer (resolve_purchase, INV-001..003) |
+| Payout > harga−fee / kosong / > 10 penerima / amount 0 | tolak → refund buyer (resolve_purchase, INV-001..003) |
 | Royalti **per token** > 10% harga wajar token | tolak → refund (INV-027; agregat bundle = penjumlahan, tanpa cap) |
-| Sisa pembulatan > 1 yocto | tolak → refund (INV-002) |
 | Deposit > harga (harga berubah saat signing) | selisih dikembalikan ke buyer via resolve |
 | FT belum terdaftar (fase 2) | `ft_on_transfer` tolak → refund otomatis via ft_resolve_transfer |
 | Gas kurang di resolve | gas budget 115 Tgas dipantau; naikkan bila payout path berubah |
+
+> **Bukan error case: residual seller besar.** `max_pay − Σpayout` = proceeds seller (§Algoritma
+> Distribusi Payout), nilainya wajar besar. Tidak ada lagi aturan "sisa > 1 yocto → tolak"
+> (koreksi ronde 23 — aturan itu berasal dari model tutorial yang tidak dipakai NearSea).
 
 ## Acceptance Criteria
 

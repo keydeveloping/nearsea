@@ -61,7 +61,7 @@
 - **AuthN (dua mekanisme per arah)**:
   - Market→NFT: market hanya mempercayai hasil promise yang ia panggil sendiri; callback internal `#[private]` (hanya self).
   - NFT→market (`nft_on_approve`): call MASUK dari kontrak NFT mana pun (predecessor = kontrak NFT, TIDAK #[private]) → market wajib memvalidasi payload NEP-178 (owner_id, approval_id, msg) dan bahwa predecessor adalah kontrak NFT yang sah untuk token tersebut.
-- **Validasi**: payout dari kontrak NFT = untrusted → divalidasi ketat (≤ harga, ≤10 penerima, sisa 0..1 yocto) sebelum distribusi; gas caps.
+- **Validasi**: payout dari kontrak NFT = untrusted → divalidasi ketat (Σ ≤ harga−fee, ≤10 penerima, amount > 0) sebelum distribusi; gas caps.
 - **Gagal**: kontrak NFT jahat: return payout bohong, gas bomb, revert transfer setelah state diubah (→ optimistic removal + revert pattern), event palsu.
 - **Log**: event `market_*` + kegagalan promise.
 

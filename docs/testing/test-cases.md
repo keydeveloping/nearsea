@@ -290,11 +290,17 @@ Steps: 1) seller `cancel_bundle` 2) cek approval ketiga token 3) cek bundle stat
 Expected: approval ketiga token false; bundle hilang; event `market_bundle_cancel`; token bebas di-list lagi.
 Layer: sandbox | Invariant: INV-028
 
-### TC-047 — withdraw_fees owner-only
-Precondition: 2 penjualan sukses (fee terkumpul di kontrak); treasury address terisi.
-Steps: 1) non-owner panggil `withdraw_fees` 2) owner panggil `withdraw_fees` 3) cek saldo treasury.
-Expected: non-owner revert; owner sukses — fee pindah exact ke treasury; event `treasury_withdraw`.
-Layer: sandbox | Invariant: SEC-CONTRACT-012 (owner-only MVP)
+### TC-047 — Owner-only config (fee & treasury)
+
+Precondition: market ter-deploy; owner key diketahui; treasury custom tersedia.
+Steps: 1) non-owner panggil `update_fee_bps(500)` → revert 2) owner panggil `update_fee_bps(500)` → sukses, `get_fee_bps() == 500` 3) owner panggil `update_fee_bps(501)` → revert (cap INV-004) 4) non-owner panggil `update_treasury(x)` → revert 5) owner panggil `update_treasury(treasury)` → sukses, `get_treasury() == treasury`.
+Expected: semua aksi non-owner revert; owner sukses dengan batas cap; event `fee_update` / `treasury_update` ter-emit.
+Layer: sandbox | Invariant: SEC-CONTRACT-012 (owner-only MVP), INV-004
+
+> **Koreksi ronde 23:** TC ini sebelumnya menguji `withdraw_fees` (fee terakumulasi di kontrak, ditarik owner).
+> Model itu **dibatalkan** — fee ditransfer langsung ke treasury saat settlement, jadi tidak ada dana fee
+> yang tertahan ([contracts/market.md](../contracts/market.md) §4a). Cakupan owner-only dialihkan ke
+> `update_fee_bps`/`update_treasury`, yang memang satu-satunya aksi owner finansial di kontrak market M1.
 
 ### TC-048 — Callback `nft_on_approve` dipalsukan
 Precondition: kontrak penyerang ter-deploy di sandbox.
@@ -338,7 +344,7 @@ Steps: 1) buyer `buy` dengan deposit penuh 2) callback gagal → cek `pending_pu
 Expected: (1) entri pending ada setelah callback gagal; (2) `recover_stuck_purchase` sebelum delay → revert (terlalu dini); (3) setelah delay → buyer menerima refund **penuh**, Sale dipulihkan, entri pending dihapus; event `market_purchase_recovered`. Buyer tidak bergantung pada owner/governance.
 Layer: sandbox | Invariant: INV-031
 
-> **Cakupan slice M1 (TASK-006):** TC yang runnable tanpa M1+ = TC-001 (mint), TC-002 (list&buy), TC-013 (harga < min), TC-016 (race 20 pembeli), TC-017 (double-submit), TC-020 (storage kurang), TC-022 (harga berubah), TC-044 (remove_sale), TC-047 (withdraw_fees owner-only), TC-048 (callback dipalsukan), **TC-053** (stale approval), **TC-054** (recover stuck). TC-003/TC-012 sebagian (butuh setup khusus / subset market-pause).
+> **Cakupan slice M1 (TASK-006):** TC yang runnable tanpa M1+ = TC-001 (mint), TC-002 (list&buy), TC-003 (payout invalid → refund), TC-013 (harga < min), TC-016 (race 20 pembeli), TC-017 (double-submit), TC-020 (storage kurang), TC-022 (harga berubah), TC-044 (remove_sale), TC-047 (owner-only config fee/treasury), TC-048 (callback dipalsukan), **TC-053** (stale approval), **TC-054** (recover stuck). TC-012 sebagian (subset market-pause).
 > **Deferred ke M1+:** TC-004/005/008/018/019/041 (offers), TC-009/010/011/014/015/043/046 (bundle/private), TC-006 (stale ownership — cleanup), TC-007/021 (launchpad), TC-023/024 (notifikasi), TC-025..TC-039 (API/admin/profil/report), TC-040 (E2E penuh, butuh factory+seed), TC-049..TC-052 (API/CORS/health).
 
 > **Sudah dibuktikan di level unit (bukan pengganti sandbox):** TC-001 (mint → transfer → events) dan
@@ -346,7 +352,7 @@ Layer: sandbox | Invariant: INV-031
 > royalti ≤10% (dust + cap diuji), wajib 1 yocto, menolak pengirim tanpa approval, dan approval lama
 > invalid setelah transfer (INV-011). Lihat 11 test `test_transfer_payout_*` di `contract/src/lib.rs`
 > (TASK-003, ronde 21). Yang **belum** dibuktikan: validasi payout di sisi **market** (≥1 penerima,
-> Σ ≤ harga−fee, sisa ≤1 yocto, refund saat invalid) — itu bagian sandbox TC-003 milik TASK-006,
+> Σ ≤ harga−fee, amount > 0, refund saat invalid) — itu bagian sandbox TC-003 milik TASK-006,
 > bersama angka gas 15 Tgas.
 
 > **Sudah dibuktikan di level unit untuk paruh listing (ronde 22, TASK-004):** 32 test di
@@ -360,5 +366,40 @@ Layer: sandbox | Invariant: INV-031
 > Yang **belum**: paruh **buy** TC-002, TC-016/017 (race/double-submit), TC-022 (harga berubah),
 > TC-048 (callback dipalsukan oleh kontrak penyerang), dan angka gas penuh — semuanya butuh dua
 > kontrak nyata (TASK-005/006).
+
+> **Sudah dibuktikan di level unit untuk paruh buy (ronde 23, TASK-005):** 41 test di `market/src/lib.rs`
+> menutup paruh **buy** TC-002 (split fee/royalti/seller exact, Σ keluar == Σ masuk), TC-022 (kelebihan
+> deposit refund, deposit kurang), TC-003 (6 jalur payout invalid → refund penuh), TC-006/TC-053 (stale
+> dua kasus), TC-054 (recovery permissionless + jeda), TC-047 (`update_fee_bps`/`update_treasury`
+> owner-only + cap), INV-014 (tujuan transfer turunan state), dan anggaran gas `resolve_purchase`.
+> Yang **belum**: seluruh jalur di atas dengan **dua kontrak nyata** (promise & urutan receipt sungguhan)
+> — itu TASK-006.
+
+> **Sudah dibuktikan di level sandbox dua-kontrak (ronde 24, TASK-006 / tiket `08`):**
+> `market/tests/slice_sandbox.rs` — **17 test** men-deploy wasm **koleksi + market** nyata di sandbox
+> chain (bukan mock) dan membuktikan: TC-001 (mint + storage dibayar minter + deposit exact),
+> **TC-002** (jalur bahagia penuh dengan angka exact: fee 2% → treasury, royalti 5% → kreator,
+> proceeds seller = residual; **NFT terbukti tetap di wallet seller selama listing** — non-custodial
+> diasersi on-chain; approval lama invalid setelah transfer), **TC-006** (stale kepemilikan pindah →
+> refund penuh + `market_stale_detected reason=ownership_mismatch`), **TC-013** (harga < min ditolak,
+> tepat batas diterima), **TC-016** (race 20 pembeli → tepat 1 menang, 19 revert `CONFLICT_SOLD`
+> dengan deposit kembali penuh — hanya gas hangus), **TC-017** (double-submit → revert tanpa efek
+> ganda), **TC-020** (storage `required−1`/`0`/`required` dari view `storage_balance_bounds`),
+> **TC-022** (harga berubah: deposit lama ditolak, kelebihan refund), **TC-044** (`remove_sale`:
+> storage kembali, approval **tidak** dicabut, buy berikutnya gagal), **TC-047** (owner-only +
+> cap 500 bps + event `fee_update`/`treasury_update`), **TC-048** (notifikasi `nft_on_approve` palsu
+> tidak menciptakan listing), **TC-053** (stale approval dicabut → refund penuh +
+> `reason=approval_revoked`), **TC-054** (pending di-inject → recovery permissionless setelah jeda
+> blok: refund penuh + listing dipulihkan + event `market_purchase_recovered`), plus INV-014
+> (akun luar tidak menerima apa pun) dan INV-004/INV-027 (split tetap konsisten saat fee **dan**
+> royalti di cap 5%/10%).
+> **Temuan F1 (bug nyata, bukan test yang salah):** `nft_transfer` atas token yang **masih di-approve**
+> gagal `ExcessiveUnlockError` bila penerima belum memegang token lain di koleksi yang sama — bug
+> storage-accounting NEP-145 di kontrak koleksi, dicatat sebagai **TASK-036** di `tasks/backlog.md`.
+> TC-006 memakai urutan `nft_revoke` → `nft_transfer` sebagai jalan keluar sementara; jalur uang
+> NearSea (`list` → `buy` via NEP-199) tidak terkena.
+> **Belum diklaim (tetap M1+/fase 2):** TC-003 versi sandbox (butuh koleksi yang mengembalikan payout
+> invalid — koleksi NearSea selalu sah), TC-011 penuh, TC-012 (pause), bundle/offers, launchpad penuh,
+> API/admin/notifikasi/E2E, dan **angka gas terukur** per-call.
 
 > Kasus lanjutan (TC-019..TC-052) mengikuti skenario wajib di [testing-strategy.md](./testing-strategy.md): offer auto-cancel, storage deposit, phase overlap, harga berubah saat signing, profil custom API (NEP-413), notifikasi polling/idempotency, admin step-up, test endpoint API (happy + error), E2E jalur emas, plus perlindungan bundle (TC-043..046) dan jalur owner/admin (TC-047..052). Kasus discovery ★ fase 2 ditambahkan saat indexer aktif.

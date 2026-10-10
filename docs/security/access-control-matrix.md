@@ -45,7 +45,7 @@
 | Unpause | I | I | I | I | C | I | **R/A** |
 | Update `fee_bps` | I | I | — | C | C | C | **R/A** |
 | Update treasury | I | I | — | C | C | C | **R/A** |
-| Withdraw fee treasury | I | I | — | I | C | **R** | **A** |
+| Rekonsiliasi fee treasury (off-chain) | I | I | — | I | C | **R** | **A** |
 | Upgrade kontrak | I | I | — | C | C | C | **R/A** |
 | Moderasi report/verified/blocklist | I | C | **R/A** | I | I | — | — |
 | Kelola allowlist admin | I | I | C | **R/A** | C | — | — |
@@ -61,7 +61,7 @@
 | `update_fee_bps` | PLATFORM_OWNER | MVP: owner key; mainnet: DAO proposal | `≤ MAX_FEE_BPS` (immutable — INV-004) | MVP tunggal; mainnet timelock 24 jam | event `fee_update` | — |
 | `update_treasury` | PLATFORM_OWNER | MVP: owner key; mainnet: DAO proposal | valid account | MVP tunggal; mainnet timelock | event `treasury_update` | — |
 | Upgrade kontrak (redeploy) | PLATFORM_OWNER | MVP: owner key; mainnet: DAO proposal 2-of-3 | release checklist (deployment.md) + reproducible build NEP-330 | mainnet: timelock + publish wasm hash | code hash on-chain | — |
-| Withdraw treasury | PLATFORM_OWNER (mainnet: FINANCE) | MVP: owner key; mainnet: DAO proposal | hanya dana fee, bukan escrow (INV-005) — **PROPOSED mainnet; OPEN QUESTION: kebijakan penarikan (threshold)** | mainnet: multisig FINANCE+SECURITY | event `treasury_withdraw` | — |
+| ~~Withdraw treasury~~ | — | — | **Dihapus ronde 23** — fee ditransfer langsung ke treasury saat settlement; tidak ada akumulasi di kontrak ([contracts/market.md](../contracts/market.md) §4a) | — | — | — |
 | Set phase / allowlist koleksi | CREATOR | signature tx creator (owner koleksi) | harus owner koleksi + storage pre-deposit | — | event launchpad | — |
 
 ## Privileged operations (off-chain)

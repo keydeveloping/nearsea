@@ -11,9 +11,9 @@
 
 - **Attack path**: VPS compromise (RCE via app bug → membaca `~/.near-keys`) / seed phrase bocor (phishing tim) / CI secret leak jika key pernah lewat pipeline.
 - **Preconditions**: satu saja dari jalur di atas berhasil.
-- **Assets**: semua kemampuan owner — pause, `fee_bps` (dibatasi cap), treasury withdraw, **upgrade kontrak ke kode berbahaya**.
+- **Assets**: semua kemampuan owner — pause, `fee_bps` (dibatasi cap), `update_treasury` (arahkan fee), **upgrade kontrak ke kode berbahaya**. (Tidak ada penarikan treasury dari kontrak — fee masuk akun treasury saat settlement, ronde 23.)
 - **Impact**: **Kritis**. Worst case = deploy kontrak jahat + drain escrow offer + arahkan payout. NFT user TETAP AMAN (tidak pernah dipegang kontrak — approval model ADR-007). Escrow offer bisa dirampas via upgrade.
-- **Detection**: monitor tx dari owner account (polling NearBlocks → alert Telegram); tx upgrade tak terjadwal; lonjakan `withdraw_fees`.
+- **Detection**: monitor tx dari owner account (polling NearBlocks → alert Telegram); tx upgrade tak terjadwal; perubahan `treasury` tak terduga.
 - **Prevention**: key tidak pernah di app process; hardening VPS; tidak pernah lewat CI; seed offline 2 lokasi ([key-management.md](./key-management.md)).
 - **Mitigation**: escrow kecil (offer expire 7 hari + user bisa cancel sendiri); `MAX_FEE_BPS` immutable membatasi kerusakan via fee; **mainnet**: Sputnik DAO V2 council 2-of-3 + timelock (ADR-013) → upgrade tidak instan.
 - **Emergency**: pause race → bila key sudah di tangan attacker, buat akun/deploy baru dengan **kunci FRESH yang tidak pernah terekspos** (BUKAN seed backup yang mungkin ikut bocor). Attacker bisa menyalahgunakan approval yang sudah ada → jalankan playbook mass-revoke: user `nft_revoke_all` per token + market `remove_stale_listing` (G6).
@@ -39,7 +39,7 @@
 - **Assets**: dana hasil penjualan (proceeds seller, royalti, fee treasury).
 - **Impact**: **Kritis** — dana salah distribusi; transfer on-chain **final** (FACT) → tidak bisa dibalikkan; korban = seller/royalti/trader.
 - **Detection**: reconcile `sum(payout) == harga − fee` tiap settle; unit test matriks royalti (0%, 1000 bps, bulat tak rata); alert bila selisih > 1 yocto.
-- **Prevention**: INV-001..004; **checked arithmetic** (`overflow-checks` di release); batas 10 penerima; validasi sisa ≤ 1 yocto.
+- **Prevention**: INV-001..004; **checked arithmetic** (`overflow-checks` di release); batas 10 penerima; validasi Σpayout ≤ harga − fee dan amount > 0.
 - **Mitigation**: payout divalidasi **sebelum** transfer (bukan sesudah); gagal validasi → revert + refund penuh.
 - **Emergency**: pause sampai patch; identifikasi tx terdampak dari event `market_sale`.
 - **Recovery**: kompensasi via G7 insurance fund untuk kasus terverifikasi; perbaikan + test regresi sebelum unpause.

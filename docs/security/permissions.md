@@ -55,7 +55,7 @@
 | A-15 | Pause / unpause | PLATFORM_OWNER / guardian | ✓ (owner) | ✓ | ✓ (guardian pause) | Kontrak (Owner/Pausable) | event `market_pause` |
 | A-16 | Update `fee_bps` | PLATFORM_OWNER | ✓ | ✓ | ✓ (DAO + timelock) | Kontrak (≤ `MAX_FEE_BPS`) | event `fee_update` |
 | A-17 | Update treasury | PLATFORM_OWNER | ✓ | ✓ | ✓ (DAO + timelock) | Kontrak (Owner) | event `treasury_update` |
-| A-18 | Withdraw fee treasury | PLATFORM_OWNER / FINANCE | ✓ | ✓ | ✓ (DAO) | Kontrak (hanya dana fee — INV-005) | event `treasury_withdraw` |
+| A-18 | ~~Withdraw fee treasury~~ | — | — | — | — | **Dihapus ronde 23** — fee masuk treasury saat settlement (tidak ada dana fee di kontrak) | — |
 | A-19 | Upgrade kontrak | PLATFORM_OWNER | ✓ | ✓ | ✓ (DAO 2-of-3 + timelock) | Kontrak (owner/governance) + NEP-330 | code hash on-chain |
 | A-20 | Moderasi report (hide/ignore) | ADMIN | ✓ | ✓ | ✓ | API (allowlist + step-up) | `admin_audit` |
 | A-21 | Set verified badge | ADMIN | ✓ | ✓ | ✓ | API (allowlist + step-up) | `admin_audit` |
@@ -82,7 +82,7 @@
 | Pause | tunggal (cepat) | guardian tunggal (cepat) | event `market_pause` |
 | Unpause | tunggal | DAO + timelock | event `market_unpause` |
 | Fee/treasury/upgrade | tunggal (owner key) | DAO 2-of-3 + timelock 24 jam | event on-chain + code hash |
-| Withdraw treasury | tunggal | DAO (FINANCE + SECURITY) | event `treasury_withdraw` |
+| ~~Withdraw treasury~~ | — | — | **Dihapus ronde 23** — fee masuk treasury saat settlement |
 | Moderasi admin | admin tunggal | 2-admin untuk hide berdampak luas | `admin_audit` |
 | Kelola allowlist admin | manual SQL | 2-admin approval | `admin_audit` |
 
