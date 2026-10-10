@@ -103,12 +103,16 @@
   kembali penuh), **TC-017**, **TC-020**, **TC-022**, **TC-044**, **TC-047**, **TC-048**, **TC-054**
   (recovery permissionless), plus INV-014 dan INV-004/INV-027 (split konsisten saat fee & royalti di cap).
   Bukti: `cargo test --workspace` = **134 test** (73 market unit + 18 sandbox + 42 koleksi + 1 factory),
-  `fmt --check` + `clippy -D warnings` bersih, 4 wasm ter-build. **Sandbox hanya jalan di Linux/macOS**
+  `fmt --check` + `clippy -D warnings` bersih, 4 wasm ter-build. **Bukti CI (ronde 28)**: suite ini
+  `#![cfg(unix)]`, jadi verifikasi nyatanya = [run 37895683629](https://github.com/keydeveloping/nearsea/actions/runs/37895683629)
+  (PR #14, `ubuntu-latest`) — `18 passed; 0 failed`, 221s. **Sandbox hanya jalan di Linux/macOS**
   (binary nearcore tidak dipublikasikan untuk Windows) — dev-dependency di-scope `cfg(unix)` supaya gate
   lokal Windows tidak berubah; CI membangun wasm + fixture sebelum test.
   **Temuan F1 (bug nyata, bukan test yang salah):** `nft_transfer` atas token yang **masih di-approve**
   gagal `ExcessiveUnlockError` (storage-accounting NEP-145 di kontrak koleksi) → dicatat sebagai
-  **TASK-036**; jalur uang NearSea (`list` → `buy`) tidak terkena. Sisa slice M1: jalur FE 007 → 008.
+  **TASK-036**; jalur uang NearSea (`list` → `buy`) tidak terkena. **Ronde 28: tiket 05/06/07/08
+  semuanya mendarat di `dev`** (PR #12/#13/#14); AC sandbox tiket 05/06 ditutup dengan bukti run CI di
+  atas. Sisa slice M1: hanya jalur emas Playwright (tiket 10) yang menunggu deploy testnet.
 
 ## M1+ — MVP completion (lanjutan eksplisit, bukan dibuang)
 

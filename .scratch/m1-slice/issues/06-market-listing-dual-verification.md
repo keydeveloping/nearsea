@@ -4,7 +4,7 @@
 
 **Blocked by:** 04 — butuh kontrak koleksi dengan `nft_token`/`nft_is_approved` untuk diverifikasi.
 
-**Status:** done — kontrak + 26 unit test baru hijau (ronde 22).
+**Status:** done — kontrak + 26 unit test baru hijau (ronde 22). AC sandbox (list → cancel + jalur gagal) **ditutup ronde 28** setelah suite dua-kontrak tiket `08` mendarat di `dev`; bukti CI di AC terkait.
 
 - [x] `list_nft_for_sale` membuat listing **hanya** bila verifikasi silang milik market lolos: pemanggil adalah pemilik token **dan** market sedang di-approve.
       → `test_list_creates_sale_after_dual_verification` (jalur sukses) + `test_list_rejected_when_caller_is_not_token_owner`,
@@ -44,10 +44,15 @@
       `test_nft_on_approve_does_not_create_listing`, `test_nft_on_approve_rejects_empty_payload`,
       `test_nft_on_approve_rejects_self_as_owner`. Tanpa method ini, tx-1 (`nft_approve(market, msg)`)
       memanggil method yang tidak ada.
-- [ ] Sandbox hijau: list → cancel, plus jalur gagal (TC-002 paruh list, TC-013, TC-020, TC-044).
-      → ⚠️ **Unit-level, bukan sandbox.** Semua jalur di atas dibuktikan di unit (26 test); suite **sandbox**
-      (`near-workspaces`, 2 kontrak) milik tiket `08` — lihat
-      [test-cases.md](../../../docs/testing/test-cases.md) §Cakupan slice M1 dan catatan "Sudah dibuktikan di level unit untuk paruh listing".
+- [x] Sandbox hijau: list → cancel, plus jalur gagal (TC-002 paruh list, TC-013, TC-020, TC-044).
+      → **Tutup ronde 28** setelah suite sandbox tiket `08` mendarat di `dev`. Bukti CI:
+      [run 37895683629](https://github.com/keydeveloping/nearsea/actions/runs/37895683629) (PR #14,
+      `ubuntu-latest`) — `18 passed; 0 failed`. Cakupan spesifik di `market/tests/slice_sandbox.rs`:
+      **TC-002** (`tc_002_list_then_buy_settles_with_exact_split` — paruh list termasuk asersi
+      non-custodial on-chain di baris 121–125: "NFT tetap di wallet seller selama listing"),
+      **TC-013** (`tc_013_price_below_minimum_is_rejected`), **TC-020**
+      (`tc_020_listing_requires_storage_deposit`), **TC-044**
+      (`tc_044_remove_sale_delists_and_releases_storage` — list → cancel + storage kembali).
 
 **Done-when (TASK-004):** List/cancel + storage deposit lolos (INV-020, TC-002).
 → ✅ **List/cancel + storage deposit lolos** di level unit: dual verification dua kasus, non-custodial

@@ -351,9 +351,10 @@ Layer: sandbox | Invariant: INV-031
 > **sisi koleksi TC-003** — `nft_transfer_payout` memindahkan kepemilikan dan mengembalikan payout
 > royalti ≤10% (dust + cap diuji), wajib 1 yocto, menolak pengirim tanpa approval, dan approval lama
 > invalid setelah transfer (INV-011). Lihat 11 test `test_transfer_payout_*` di `contract/src/lib.rs`
-> (TASK-003, ronde 21). Yang **belum** dibuktikan: validasi payout di sisi **market** (≥1 penerima,
-> Σ ≤ harga−fee, amount > 0, refund saat invalid) — itu bagian sandbox TC-003 milik TASK-006,
-> bersama angka gas 15 Tgas.
+> (TASK-003, ronde 21). Validasi payout di sisi **market** (≥1 penerima, Σ ≤ harga−fee, amount > 0,
+> refund saat invalid) — dulu "belum" — **kini sudah** dibuktikan di sandbox TC-003 lewat fixture
+> koleksi pihak ketiga (ronde 28, lihat blok sandbox di bawah). Yang masih terbuka hanya **angka gas
+> terukur**.
 
 > **Sudah dibuktikan di level unit untuk paruh listing (ronde 22, TASK-004):** 32 test di
 > `market/src/lib.rs` menutup paruh **list** dari TC-002 (dual verification: ownership **dan** approval,
@@ -363,24 +364,26 @@ Layer: sandbox | Invariant: INV-031
 > (INV-007), `update_price` (in-place + min + owner-only + paused), `approval_id` di luar rentang
 > `u32`, dan paginasi view. Non-custodial dibuktikan dengan **membaca receipt** yang dibuat jalur
 > listing: hanya `nft_token` + `nft_is_approved` + callback, tidak ada `nft_transfer*`.
-> Yang **belum**: paruh **buy** TC-002, TC-016/017 (race/double-submit), TC-022 (harga berubah),
-> TC-048 (callback dipalsukan oleh kontrak penyerang), dan angka gas penuh — semuanya butuh dua
-> kontrak nyata (TASK-005/006).
+> Paruh **buy** TC-002, TC-016/017 (race/double-submit), TC-022 (harga berubah), TC-048 (callback
+> dipalsukan oleh kontrak penyerang) — dulu "belum" — **kini sudah** dibuktikan di sandbox dua-kontrak
+> (ronde 28, blok di bawah). Yang masih terbuka: **angka gas penuh**.
 
 > **Sudah dibuktikan di level unit untuk paruh buy (ronde 23, TASK-005):** 41 test di `market/src/lib.rs`
 > menutup paruh **buy** TC-002 (split fee/royalti/seller exact, Σ keluar == Σ masuk), TC-022 (kelebihan
 > deposit refund, deposit kurang), TC-003 (6 jalur payout invalid → refund penuh), TC-006/TC-053 (stale
 > dua kasus), TC-054 (recovery permissionless + jeda), TC-047 (`update_fee_bps`/`update_treasury`
 > owner-only + cap), INV-014 (tujuan transfer turunan state), dan anggaran gas `resolve_purchase`.
-> Yang **belum**: seluruh jalur di atas dengan **dua kontrak nyata** (promise & urutan receipt sungguhan)
-> — itu TASK-006.
+> Seluruh jalur di atas dengan **dua kontrak nyata** (promise & urutan receipt sungguhan) — dulu
+> "belum" — **kini sudah** dibuktikan: itu TASK-006 / tiket `08` (ronde 28, blok sandbox di bawah).
 
-> **Sudah dibuktikan di level sandbox dua-kontrak (ronde 24, TASK-006 / tiket `08`):**
-> `market/tests/slice_sandbox.rs` — **17 test** men-deploy wasm **koleksi + market** nyata di sandbox
+> **Sudah dibuktikan di level sandbox dua-kontrak (ronde 24, TASK-006 / tiket `08`; bukti CI ronde 28):**
+> `market/tests/slice_sandbox.rs` — **18 test** men-deploy wasm **koleksi + market** nyata di sandbox
 > chain (bukan mock) dan membuktikan: TC-001 (mint + storage dibayar minter + deposit exact),
 > **TC-002** (jalur bahagia penuh dengan angka exact: fee 2% → treasury, royalti 5% → kreator,
 > proceeds seller = residual; **NFT terbukti tetap di wallet seller selama listing** — non-custodial
-> diasersi on-chain; approval lama invalid setelah transfer), **TC-006** (stale kepemilikan pindah →
+> diasersi on-chain; approval lama invalid setelah transfer), **TC-003** (payout tidak valid dari
+> koleksi pihak ketiga lewat fixture `market/tests/fixtures/rogue-collection` → refund penuh + listing
+> dipulihkan; 4 bentuk invalid + kontrol `Valid`), **TC-006** (stale kepemilikan pindah →
 > refund penuh + `market_stale_detected reason=ownership_mismatch`), **TC-013** (harga < min ditolak,
 > tepat batas diterima), **TC-016** (race 20 pembeli → tepat 1 menang, 19 revert `CONFLICT_SOLD`
 > dengan deposit kembali penuh — hanya gas hangus), **TC-017** (double-submit → revert tanpa efek
@@ -391,15 +394,17 @@ Layer: sandbox | Invariant: INV-031
 > tidak menciptakan listing), **TC-053** (stale approval dicabut → refund penuh +
 > `reason=approval_revoked`), **TC-054** (pending di-inject → recovery permissionless setelah jeda
 > blok: refund penuh + listing dipulihkan + event `market_purchase_recovered`), plus INV-014
-> (akun luar tidak menerima apa pun) dan INV-004/INV-027 (split tetap konsisten saat fee **dan**
-> royalti di cap 5%/10%).
+> (akun luar tidak menerima apa pun), INV-003 (payout `1..=10` penerima unik, tanpa amount `0`),
+> dan INV-004/INV-027 (split tetap konsisten saat fee **dan** royalti di cap 5%/10%).
+> **Bukti CI (ronde 28):** suite ini `#![cfg(unix)]`, jadi gate lokal Windows tidak menjalankannya.
+> Verifikasi nyata = [run 37895683629](https://github.com/keydeveloping/nearsea/actions/runs/37895683629)
+> (PR #14, `ubuntu-latest`): `test result: ok. 18 passed; 0 failed … finished in 221.50s`.
 > **Temuan F1 (bug nyata, bukan test yang salah):** `nft_transfer` atas token yang **masih di-approve**
 > gagal `ExcessiveUnlockError` bila penerima belum memegang token lain di koleksi yang sama — bug
 > storage-accounting NEP-145 di kontrak koleksi, dicatat sebagai **TASK-036** di `tasks/backlog.md`.
 > TC-006 memakai urutan `nft_revoke` → `nft_transfer` sebagai jalan keluar sementara; jalur uang
 > NearSea (`list` → `buy` via NEP-199) tidak terkena.
-> **Belum diklaim (tetap M1+/fase 2):** TC-003 versi sandbox (butuh koleksi yang mengembalikan payout
-> invalid — koleksi NearSea selalu sah), TC-011 penuh, TC-012 (pause), bundle/offers, launchpad penuh,
+> **Belum diklaim (tetap M1+/fase 2):** TC-011 penuh, TC-012 (pause), bundle/offers, launchpad penuh,
 > API/admin/notifikasi/E2E, dan **angka gas terukur** per-call.
 
 > Kasus lanjutan (TC-019..TC-052) mengikuti skenario wajib di [testing-strategy.md](./testing-strategy.md): offer auto-cancel, storage deposit, phase overlap, harga berubah saat signing, profil custom API (NEP-413), notifikasi polling/idempotency, admin step-up, test endpoint API (happy + error), E2E jalur emas, plus perlindungan bundle (TC-043..046) dan jalur owner/admin (TC-047..052). Kasus discovery ★ fase 2 ditambahkan saat indexer aktif.
