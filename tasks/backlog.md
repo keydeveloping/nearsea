@@ -65,7 +65,7 @@ Milestone: M0 | M1 | M2 | M3 | M4
 | TASK-032 | Versioning & rilis: SemVer per-artefak + tag + CHANGELOG + versi kontrak NEP-330 (SEC-CONTRACT-006) | infra/docs | P0 (M1) | 001 | development/versioning-and-release | done | 1 | Tag pertama + CHANGELOG terisi + versi NEP-330 terverifikasi | M0 |
 | TASK-033 | Error & notifikasi terpusat: registry kode error + pemetaan panic kontrak + kebijakan notifikasi (FE + API) | frontend/backend | P1 | 008 | development/error-handling | todo | 2 | Modul error terpusat dipakai; tidak ada pesan ad-hoc | M1+ |
 | TASK-034 | Prep scaling: app stateless + pooling + rencana read replica/LB (aktif saat trafik naik) | infra | P1 (fase 2) | 028 | architecture/scaling | todo | 3 | App stateless terverifikasi + rencana replica/LB tertulis | M2 |
-| TASK-035 | Audit dependensi: tinjau ulang advisory tanpa patch yang di-*ignore* (`--ignore-unfixable`) | infra | P2 | 001 | development/ci-cd.md §3 | todo | 0.5 | Advisory yang di-ignore punya keputusan tercatat: diperbaiki, diganti, atau diterima + alasan | M1+ |
+| TASK-035 | Audit dependensi: tinjau ulang advisory tanpa patch yang di-*ignore* (`--ignore-unfixable`) | infra | P2 | 001 | development/ci-cd.md §3 | done | 0.5 | Advisory yang di-ignore punya keputusan tercatat: diperbaiki, diganti, atau diterima + alasan | M1+ |
 | TASK-036 | **Fix storage accounting `nft_transfer` atas token ter-approve (temuan F1)** — transfer gagal `ExcessiveUnlockError` bila penerima belum punya token; storage entry approval dibebaskan ke **penerima** padahal tak pernah ditagih ke siapa pun | contract | P0 | 002 | contracts/nft-collection.md §4/§7 + security/smart-contract-security-architecture.md §15 | done | 2 | `nft_transfer` token ter-approve ke penerima terdaftar berhasil (regression test sandbox) | M1 |
 | TASK-037 | Tinjau `function-call-key-plugin` (dependency transitif `near-connect-hooks`): menyimpan private key function-call di `localStorage` | security | P0 | 007 | security/key-management.md + features/auth.md | todo | 1 | Keputusan tercatat: jalur dinonaktifkan permanen (tanpa `addFunctionCallKey`), atau dependency diganti, atau diterima + alasan tertulis. **Kode plugin terbukti ADA di bundle klien (ronde 26) — bukan alasan tree-shaking** | M1+ |
 | TASK-038 | Aktifkan lint yang tertunda setelah struktur `features/` ada: `import/order`, `no-restricted-imports` (larangan impor lintas-fitur), `react/jsx-no-useless-fragment` | frontend | P2 | 007 | development/code-standards.md §9 | done | 0.5 | Ketiga aturan aktif di `eslint.config.mjs` dan gate FE tetap hijau | M1+ |
@@ -237,12 +237,17 @@ Milestone: M0 | M1 | M2 | M3 | M4
 > diusulkan: bebaskan storage entry approval ke **owner** (`action.sender_id`/owner saat itu), bukan ke
 > receiver — atau jangan pakai hook generik untuk jalur transfer.
 
-> **TASK-035 (dibuat ronde 18, TASK-001):** `braces <=3.0.3` (high, ReDoS) masuk lewat
-> `eslint-config-next → @next/eslint-plugin-next → fast-glob → micromatch`. Versi terbaru `braces` = 3.0.3
-> dan **belum ada patch upstream** (`GHSA-vfj7-8cw-p6xm` / `CVE-2026-93687`), jadi gate `pnpm audit` tidak
-> bisa hijau tanpa pengecualian. Pengecualiannya ditulis **eksplisit** di `frontend/pnpm-workspace.yaml`
-> (`auditConfig.ignoreCves`) — terlihat saat review, bukan disenyapkan flag CI. Dampak: dev-only (linter),
-> bukan runtime produksi. Task ini memastikan keputusannya ditinjau ulang saat upstream merilis patch.
+> **TASK-035 `done` (ronde 30 — ditinjau ulang):** `braces <=3.0.3` (high, ReDoS;
+> `GHSA-vfj7-8cw-p6xm` / `CVE-2026-93687`) masih **satu-satunya** advisory yang di-ignore.
+> Ditinjau ulang dengan bukti: (a) versi terbaru `braces` di registry **masih 3.0.3** — advisory
+> berlaku `<=3.0.3`, jadi **belum ada patch upstream** yang bisa dipakai; (b) rantai dependensi
+> dikonfirmasi dev-only lewat `pnpm why braces` → `eslint-config-next` (devDependency) →
+> `@next/eslint-plugin-next` → `fast-glob` → `micromatch` → `braces`, ditandai **dev only**;
+> tidak ada jalur ke runtime produksi. **Keputusan: terima, pengecualian tetap** di
+> `frontend/pnpm-workspace.yaml` (`auditConfig.ignoreCves`) — ditulis eksplisit, terlihat saat review,
+> bukan disenyapkan flag CI. **Tindak lanjut**: entri ini wajib dihapus begitu `braces > 3.0.3` rilis.
+> Catatan: TASK-035 semula memakai `--ignore-unfixable`; mekanismenya kini eksplisit di
+> `pnpm-workspace.yaml`, jadi `pnpm audit` tetap merah kalau advisory **baru** muncul.
 
 > **TASK-031 riwayat `blocked` → `done` (ronde 18b → 18c):** saat repo masih **private**, branch protection
 > butuh GitHub Pro (API 403 "Upgrade to GitHub Pro or make this repository public") meski token punya `admin`;
