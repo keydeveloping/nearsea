@@ -69,30 +69,29 @@ Milestone: M0 | M1 | M2 | M3 | M4
 | TASK-036 | **Fix storage accounting `nft_transfer` atas token ter-approve (temuan F1)** — transfer gagal `ExcessiveUnlockError` bila penerima belum punya token; storage entry approval dibebaskan ke **penerima** padahal ditagih ke **owner** | contract | P0 | 002 | contracts/nft-collection.md §4/§7 + security/smart-contract-security-architecture.md §15 | todo | 2 | `nft_transfer` token ter-approve ke penerima terdaftar berhasil (regression test sandbox) | M1 |
 | TASK-037 | Tinjau `function-call-key-plugin` (dependency transitif `near-connect-hooks`): menyimpan private key function-call di `localStorage` | security | P0 | 007 | security/key-management.md + features/auth.md | todo | 1 | Keputusan tercatat: jalur dinonaktifkan permanen (tanpa `addFunctionCallKey`), atau dependency diganti, atau diterima + alasan tertulis. **Kode plugin terbukti ADA di bundle klien (ronde 26) — bukan alasan tree-shaking** | M1+ |
 | TASK-038 | Aktifkan lint yang tertunda setelah struktur `features/` ada: `import/order`, `no-restricted-imports` (larangan impor lintas-fitur), `react/jsx-no-useless-fragment` | frontend | P2 | 007 | development/code-standards.md §9 | done | 0.5 | Ketiga aturan aktif di `eslint.config.mjs` dan gate FE tetap hijau | M1+ |
-| TASK-039 | Advisory **RUSTSEC-2026-0285** (`rustls 0.23.43`, TLS 1.3 handshake) — perbaikan `>=0.23.45` bentrok dengan pin `aws-lc-rs =1.16.2` dari `near-crypto` | security/infra | P0 (blok PR #14) | 006 | development/ci-cd.md §3 + security/security-requirements.md | todo | 1 | Keputusan tercatat: konflik bump dipecahkan (mis. bump `near-sdk`/`near-crypto`), ATAU advisory diterima + alasan tertulis di `audit.toml` (bukan di-ignore diam-diam) | M1 |
+| TASK-039 | Advisory **RUSTSEC-2026-0285** (`rustls 0.23.43`, TLS 1.3 handshake) — perbaikan `>=0.23.45` bentrok dengan pin `aws-lc-rs =1.16.2` dari `near-crypto` | security/infra | P0 (blok PR #14) | 006 | development/ci-cd.md §3 | done | 1 | Keputusan tercatat: konflik bump dipecahkan (mis. bump `near-sdk`/`near-crypto`), ATAU advisory diterima + alasan tertulis di `audit.toml` (bukan di-ignore diam-diam) | M1 |
 
-> **TASK-039 (ronde 28, temuan saat mendaratkan tiket 07/08):** `cargo audit` di CI menemukan
-> **RUSTSEC-2026-0285** — `rustls 0.23.43` "TLS 1.3 handshake messages incorrectly accepted across
-> encryption level boundaries", perbaikan `>=0.23.45`. Advisory ini **baru terbit** di antara run CI
-> 06:48Z (hijau) dan 06:54Z (gagal) pada 2026-10-09, jadi bukan disebabkan perubahan proyek.
-> **Jangkauan terverifikasi**: `rustls` **hanya** terjangkau lewat
-> `nearsea-market → near-workspaces (dev-dependency) → near-sandbox → ureq → rustls`. Kontrak
-> produksi (`nearsea-nft-collection`, `nearsea-factory`) **tidak** menyentuhnya, dan `dev` sebelum
-> tiket 08 bahkan tidak punya `rustls` sama sekali — advisory ini muncul karena tiket 08 menambahkan
-> `near-workspaces`. **Kenapa belum diperbaiki**: `cargo update -p rustls --precise 0.23.45` gagal —
-> `rustls 0.23.45` menuntut `aws-lc-rs ^1.18`, sedangkan `near-crypto` (via `near-sdk` 5.29.1, jalur
-> produksi) mem-pin `aws-lc-rs = "=1.16.2"` **exact**. Rilis `near-crypto` stabil terbaru masih
-> `0.38.0-rc.3` (prerelease), jadi belum ada rilis stabil yang melonggarkan pin itu. Kebijakan repo
-> ([ci-cd.md](../docs/development/ci-cd.md) §3) melarang men-ignore advisory yang **punya** perbaikan,
-> jadi keputusan (pecahkan konflik bump vs terima dengan alasan tertulis) adalah milik user.
-> **Jalan keluar bersih SUDAH dicari dan tidak ada (ronde 28)** — tiga kandidat diuji, semuanya buntu:
-> (a) `near-workspaces` diganti ke fitur `native-tls` (menghapus `reqwest/rustls`) — **tidak cukup**:
-> `rustls` tetap masuk lewat `near-sandbox 0.3.16 → ureq 3.4.2`, jalur terpisah yang tidak tersentuh
-> fitur itu (perubahan sudah di-revert, tidak meninggalkan jejak); (b) bump `near-sandbox` /
-> `ureq` — keduanya sudah versi terbaru yang kompatibel (`near-workspaces 0.23` mengunci
-> `near-sandbox 0.3.x`); (c) bump `near-crypto`/`near-sdk` — hanya `0.38.0-rc.3` (prerelease) yang
-> melonggarkan pin, dan prerelease tidak dipakai untuk kontrak produksi. Artinya pilihannya menyempit
-> ke **terima + alasan tertulis** atau **tunggu upstream**.
+> **TASK-039 `done` (ronde 28):** advisory **RUSTSEC-2026-0285** (`rustls 0.23.43` — "TLS 1.3 handshake
+> messages incorrectly accepted across encryption level boundaries"; perbaikan `>=0.23.45`) terbit
+> **di antara** dua run CI pada 2026-10-09 (06:48Z hijau, 06:54Z gagal), jadi bukan akibat perubahan
+> proyek. **Keputusan user: terima + catat eksplisit.** Entri ditulis di
+> [`.cargo/audit.toml`](../.cargo/audit.toml) (`[advisories] ignore`, dengan alasan + pelacak di
+> komentarnya) — **bukan** flag yang menyenyapkan audit; `cargo audit` membacanya otomatis dari root.
+> Kebijakan + jangkauan + blocker dicatat di [ci-cd.md](../docs/development/ci-cd.md) §3/§3a.
+> **Jangkauan terverifikasi** (`cargo tree -i rustls`): hanya rantai **test** —
+> `nearsea-market → [dev-dependency] near-workspaces → near-sandbox → ureq → rustls`. Kontrak produksi
+> (`nearsea-nft-collection`, `nearsea-factory`) **tidak** menyentuhnya, dan `dev` sebelum TASK-006
+> belum punya `rustls` sama sekali.
+> **Kenapa perbaikannya tidak bisa dipakai**: `cargo update -p rustls --precise 0.23.45` gagal —
+> `rustls 0.23.45` menuntut `aws-lc-rs ^1.18`, sedangkan `near-crypto` (via `near-sdk` 5.29.1, fitur
+> `unit-testing`) mem-pin `aws-lc-rs = "=1.16.2"` **exact**. Rilis `near-crypto` stabil terbaru masih
+> `0.37.4`; yang melonggarkan pin hanya prerelease `0.38.0-rc.3`.
+> **Jalan keluar bersih diuji, tidak ada**: (a) `near-workspaces` dengan fitur `native-tls` — **tidak
+> cukup**, `rustls` tetap masuk lewat jalur terpisah `near-sandbox → ureq` (perubahan di-revert);
+> (b) bump `near-sandbox`/`ureq` — keduanya sudah versi terbaru yang kompatibel; (c) bump
+> `near-crypto`/`near-sdk` — hanya prerelease.
+> **Tindak lanjut**: **hapus entri di `.cargo/audit.toml`** begitu upstream melonggarkan pin
+> `aws-lc-rs` sehingga `rustls >=0.23.45` bisa dipakai. Ini membuka blokir PR #14 (tiket 07/08).
 > **Dampak**: PR #14 (tiket 07/08) terblokir check wajib `Dependency audit` sampai ini diputuskan.
 
 > **TASK-031 `done` (ronde 18c):** repo dijadikan **publik** oleh user → branch protection tersedia (sebelumnya 403 "butuh GitHub Pro" saat private). Proteksi **aktif** di `dev`/`testnet`/`mainnet`: PR wajib, force-push & delete diblokir **termasuk admin** (`enforce_admins`), 5 required status checks, conversation resolution; `strict` (branch up-to-date) di testnet/mainnet. Tag protection via ruleset `protect-release-tags` (`contract-v*`/`web-v*`/`indexer-v*`: delete + update diblokir). **Bukti**: push langsung ke `dev` ditolak GitHub — `GH006 Protected branch update failed … Changes must be made through a pull request. 5 of 5 required status checks are expected.`

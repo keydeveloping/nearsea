@@ -26,8 +26,8 @@ Kebijakan lengkap: [docs/development/versioning-and-release.md](./docs/developme
 ### Added
 - **Slice M1 mendarat di `dev` (2026-10-09)** — seluruh branch bertumpuk yang sebelumnya hanya lokal
   di-push dan di-merge lewat PR berurutan: #11 (TASK-032), #12 (TASK-003), #13 (TASK-004),
-  #15 (TASK-007), #16 (TASK-008 + TASK-038). CI hijau di tiap langkah. **TASK-005/006 (PR #14) belum
-  mendarat** — check `Dependency audit` gagal karena advisory RUSTSEC-2026-0285 (lihat Security).
+  #15 (TASK-007), #16 (TASK-008 + TASK-038). CI hijau di tiap langkah. TASK-005/006 (PR #14) menyusul
+  setelah advisory RUSTSEC-2026-0285 diterima + dicatat (lihat Security).
 - Cargo workspace root (`Cargo.toml` + `Cargo.lock`) dengan anggota `contract/` (nearsea-nft-collection),
   `market/` (nearsea-market), `factory/` (nearsea-factory) — placeholder init + Owner (+Pause) + unit test.
 - Frontend `frontend/` — Next.js 16 App Router, TypeScript strict, Tailwind 4, ESLint 9 (+ aturan proyek),
@@ -67,13 +67,16 @@ Kebijakan lengkap: [docs/development/versioning-and-release.md](./docs/developme
   vitest 4 yang tidak lagi memakainya. **Satu advisory tanpa patch upstream** (`braces <=3.0.3`, high,
   ReDoS, lewat toolchain `eslint-config-next`) dikecualikan **eksplisit** di
   `frontend/pnpm-workspace.yaml` + dilacak sebagai TASK-035.
-- **Advisory baru memblokir PR #14 (2026-10-09): RUSTSEC-2026-0285** — `rustls 0.23.43`, "TLS 1.3
-  handshake messages incorrectly accepted across encryption level boundaries"; perbaikan `>=0.23.45`.
-  Terbit di antara dua run CI hari itu (06:48Z hijau, 06:54Z gagal), jadi bukan akibat perubahan proyek.
-  Terjangkau **hanya** lewat dev-dependency `nearsea-market → near-workspaces → near-sandbox → ureq`;
-  kontrak produksi tidak menyentuhnya. Perbaikan langsung gagal karena `rustls 0.23.45` menuntut
-  `aws-lc-rs ^1.18` sementara `near-crypto` mem-pin `aws-lc-rs = "=1.16.2"`. **Belum diputuskan** —
-  dilacak sebagai **TASK-039**.
+- **Advisory RUSTSEC-2026-0285 diterima + dicatat eksplisit (TASK-039, 2026-10-09)** — `rustls 0.23.43`,
+  "TLS 1.3 handshake messages incorrectly accepted across encryption level boundaries"; perbaikan
+  `>=0.23.45`. Terbit di antara dua run CI hari itu (06:48Z hijau, 06:54Z gagal), jadi bukan akibat
+  perubahan proyek. Terjangkau **hanya** lewat dev-dependency `nearsea-market → near-workspaces →
+  near-sandbox → ureq`; kontrak produksi tidak menyentuhnya. Perbaikan langsung gagal karena
+  `rustls 0.23.45` menuntut `aws-lc-rs ^1.18` sementara `near-crypto` mem-pin `aws-lc-rs = "=1.16.2"`
+  exact. Jalan keluar bersih sudah diuji dan tidak ada (`native-tls` tidak cukup; `near-sandbox`/`ureq`
+  sudah terbaru; `near-crypto` hanya prerelease). **Keputusan: terima + catat** di
+  [`.cargo/audit.toml`](.cargo/audit.toml) dengan alasan + pelacak — bukan di-ignore diam-diam.
+  **Tindak lanjut**: hapus entri begitu upstream melonggarkan pin `aws-lc-rs`.
 
 ### Contract (kontrak NFT + market + factory)
 ### Added

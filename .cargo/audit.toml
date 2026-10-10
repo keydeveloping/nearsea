@@ -1,0 +1,33 @@
+# =============================================================================
+# cargo-audit — konfigurasi advisory (SEC-CICD-002, docs/development/ci-cd.md §3)
+# =============================================================================
+# ATURAN: advisory yang PUNYA perbaikan tidak boleh di-ignore. Entri di bawah
+# adalah pengecualian eksplisit dengan alasan tertulis + pelacak task — bukan
+# flag yang menyenyapkan audit diam-diam. Tinjau ulang setiap rilis.
+#
+# Kebijakan lengkap: docs/development/ci-cd.md §3.
+
+[advisories]
+ignore = [
+  # rustls 0.23.43 — RUSTSEC-2026-0285 ("TLS 1.3 handshake messages incorrectly
+  # accepted across encryption level boundaries"). Perbaikan: >=0.23.45.
+  #
+  # JANGKAUAN (diverifikasi `cargo tree -i rustls`): HANYA rantai test —
+  # nearsea-market -> [dev-dependency] near-workspaces -> near-sandbox -> ureq
+  # -> rustls. Kontrak produksi (nearsea-nft-collection, nearsea-factory) tidak
+  # menyentuhnya; `dev` sebelum TASK-006 bahkan tidak punya rustls sama sekali.
+  #
+  # KENAPA TIDAK DIPERBAIKI: rustls 0.23.45 menuntut aws-lc-rs ^1.18, sedangkan
+  # near-crypto (via near-sdk, fitur `unit-testing`) mem-pin
+  # aws-lc-rs = "=1.16.2" secara exact. Rilis near-crypto stabil terbaru masih
+  # 0.37.4, jadi belum ada versi yang melonggarkan pin itu.
+  #
+  # JALAN KELUAR BERSIH SUDAH DIUJI, TIDAK ADA: (a) mengganti near-workspaces ke
+  # fitur `native-tls` tidak cukup — rustls tetap masuk lewat jalur terpisah
+  # near-sandbox -> ureq; (b) near-sandbox/ureq sudah versi terbaru yang
+  # kompatibel; (c) near-crypto hanya punya prerelease 0.38.0-rc.3.
+  #
+  # PELACAK: tasks/backlog.md TASK-039 (hapus entri ini begitu upstream
+  # melonggarkan pin aws-lc-rs dan rustls >=0.23.45 bisa dipakai).
+  "RUSTSEC-2026-0285",
+]
