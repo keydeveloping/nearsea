@@ -4,7 +4,7 @@
 
 **Blocked by:** 04 — butuh token yang ada dan bisa di-transfer sebelum payout bisa diuji.
 
-**Status:** done — kontrak + 11 unit test baru hijau (ronde 21). Satu AC (TC-003 versi sandbox) sengaja **tidak** diklaim: validasi payout di sisi market + refund butuh suite sandbox dua-kontrak yang baru ada di tiket `08`.
+**Status:** done — kontrak + 11 unit test baru hijau (ronde 21). AC sandbox (TC-003 versi sandbox) **ditutup ronde 28** setelah suite dua-kontrak tiket `08` mendarat di `dev`; bukti CI di AC terkait.
 
 - [x] `nft_transfer_payout` mengembalikan payout map dengan kreator sebagai satu-satunya penerima.
       → `test_transfer_payout_moves_token_and_returns_creator_royalty` — `payout.len() == 1` dan
@@ -28,11 +28,17 @@
       Angka itu biaya host function (storage/register) **tanpa** gas CPU wasm, jadi ia batas bawah;
       pengukuran penuh tetap di sandbox (TASK-006), dan konstanta `GAS_FOR_NFT_TRANSFER` di market
       tetap PROPOSED.
-- [ ] Sandbox hijau: payout ≤10% untuk beberapa harga berbeda, termasuk batas bawah (dust) dan batas atas cap (INV-003/027, TC-003 sebagian).
-      → ⚠️ **Unit-level, bukan sandbox.** Batas bawah (dust) dan batas atas (cap) sudah diuji di unit:
+- [x] Sandbox hijau: payout ≤10% untuk beberapa harga berbeda, termasuk batas bawah (dust) dan batas atas cap (INV-003/027, TC-003 sebagian).
+      → **Tutup ronde 28** setelah suite sandbox tiket `08` mendarat di `dev`. Bukti CI:
+      [run 37895683629](https://github.com/keydeveloping/nearsea/actions/runs/37895683629) (PR #14,
+      `ubuntu-latest`) — `18 passed; 0 failed`. Cakupan spesifik di `market/tests/slice_sandbox.rs`:
+      **INV-003** (assert di jalur bahagia, baris 160–175: `1..=10` penerima unik, tidak ada amount `0`),
+      **INV-027** (`inv_004_and_027_split_holds_at_caps`: royalti 10% cap → kreator, per-token ≤10%),
+      **TC-003** (`tc_003_invalid_payout_from_third_party_collection_refunds_buyer`: payout dari koleksi
+      pihak ketiga diperlakukan UNTRUSTED → refund penuh + listing dipulihkan).
+      Batas bawah **dust** tetap dibuktikan di level unit (bukan sandbox):
       `test_transfer_payout_floors_to_zero_on_dust_basis` (19 → 0, 20 → 1 yocto di 500 bps) dan
-      `test_transfer_payout_at_cap_is_exactly_ten_percent`. Suite **sandbox** (`near-workspaces`,
-      2 kontrak) milik tiket `08` — lihat [test-cases.md](../../../docs/testing/test-cases.md) §Cakupan slice M1.
+      `test_transfer_payout_at_cap_is_exactly_ten_percent`.
 
 **Done-when (TASK-003):** Payout royalti ≤10% teruji (INV-003/027).
 → ✅ **Payout ≤10% teruji** untuk 4 rate × 6 basis (termasuk dust dan cap) di level unit, plus
