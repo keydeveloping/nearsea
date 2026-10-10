@@ -205,6 +205,29 @@ Bukti unit (11 test): perpindahan kepemilikan + payout kreator, batas ≤10% unt
 
 - **Belum dibuktikan di tiket ini:** TC-003 versi sandbox — yaitu validasi payout di sisi **market** (≥1 penerima, amount > 0, Σ ≤ harga−fee, refund saat invalid) dan angka gas penuh (butuh dua kontrak). Sama seperti TC-001 di TASK-002, bagian yang bisa dibuktikan di unit sudah dibuktikan di unit.
 
+### Status implementasi: storage accounting transfer ter-approve (TASK-036, ronde 29)
+
+Kontrak memasang `transfer_hook` kustom `RevokeApprovalsBeforeStorageAccounting` pada derive
+`NonFungibleToken`. Alasannya bukan preferensi gaya, melainkan bug yang ditemukan suite sandbox
+(temuan F1): derive bawaan **tidak** melakukan storage accounting untuk approval NEP-178
+(`all_hooks` kontrak = `()`), sehingga storage entry approval tidak pernah ditagihkan ke siapa pun.
+Saat transfer, `TokenApprovals` mencabut approval — membebaskan storage itu — dan hook
+`Nep171StorageAccountingHook` yang berjalan lebih luar melihat `storage_usage` turun, memperlakukannya
+sebagai kredit, lalu memanggil `unlock_storage` ke **receiver**. Receiver belum pernah menyetor untuk
+entry itu → `ExcessiveUnlockError`, sehingga `nft_transfer` atas token ter-approve **selalu gagal**
+untuk penerima yang belum memegang token.
+
+Hook kustom mencabut approval **sebelum** hook NEP-145 mengambil snapshot `storage_usage`, jadi delta
+yang dilihatnya nol. Karena tidak ada pihak yang ditagih untuk entry itu, tidak ada yang perlu
+dikreditkan — akuntansi tetap konsisten (INV-019/INV-020 tidak berubah). Urutan dijamin karena
+`transfer_hook` berjalan mendahului `all_hooks`; pencabutan bawaan di dalam `all_hooks` menjadi no-op.
+
+Bukti: 3 regression test unit (`test_transfer_unapproved_token_to_fresh_receiver_succeeds`,
+`test_transfer_approved_token_to_registered_receiver_succeeds`,
+`test_transfer_approved_token_twice_between_registered_accounts`) + 1 test sandbox
+(`task_036_transfer_approved_token_to_fresh_receiver_succeeds`). Dua test pertama gagal sebelum
+perbaikan dengan pesan persis `cannot unlock more tokens than it has deposited`.
+
 ---
 
 ## 5. Surface launchpad (config) + view

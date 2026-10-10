@@ -111,9 +111,16 @@
   "Sudah dibuktikan di level sandbox dua-kontrak". INV-005/006/009/010/012/013/017/018/021/022/024/
   025/028/029 tetap dibuktikan di level unit atau di-defer ke M1+ (dinyatakan eksplisit, bukan
   dibiarkan tanpa jejak).
-- **Temuan F1 (TASK-036):** suite sandbox menemukan `nft_transfer` atas token yang **masih di-approve**
-  gagal `ExcessiveUnlockError` (storage-accounting NEP-145) — bug kontrak koleksi, bukan pelanggaran
-  INV di atas; dicatat di [tasks/backlog.md](../../tasks/backlog.md) TASK-036.
+- **Temuan F1 (TASK-036) — DIPERBAIKI ronde 29:** suite sandbox menemukan `nft_transfer` atas token
+  yang **masih di-approve** gagal `ExcessiveUnlockError` (storage-accounting NEP-145) — bug kontrak
+  koleksi, bukan pelanggaran INV di atas. **Akar masalah**: approval NEP-178 tidak melakukan storage
+  accounting (`all_hooks` kontrak = `()`), jadi entry approval tidak pernah ditagihkan ke siapa pun;
+  saat transfer, pencabutan approval membebaskan storage itu dan hook NEP-145 bawaan membacanya
+  sebagai kredit lalu mencoba meng-`unlock_storage` ke **receiver** yang belum menyetor →
+  `ExcessiveUnlockError`. **Perbaikan**: `transfer_hook` kustom
+  (`RevokeApprovalsBeforeStorageAccounting`) mencabut approval **sebelum** hook NEP-145 mengambil
+  snapshot `storage_usage`, sehingga delta yang dilihatnya nol. Regression test di dua level:
+  unit (3 test di `contract/src/lib.rs`) + sandbox (`task_036_*` di `market/tests/slice_sandbox.rs`).
 
 ## Cara diverifikasi nanti (tooling DIPUTUSKAN — riset 2026-10-01)
 

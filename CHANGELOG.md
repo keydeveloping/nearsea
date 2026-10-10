@@ -174,13 +174,16 @@ Kebijakan lengkap: [docs/development/versioning-and-release.md](./docs/developme
   (RESEARCH.md §10.5) yang tidak dipakai NearSea.
 
 ### Fixed
-- **Temuan F1 dari suite sandbox (TASK-006, 2026-10-08)** — `nft_transfer` atas token yang **masih
-  di-approve** gagal `Storage accounting error: … cannot unlock more tokens than it has deposited`
-  (`ExcessiveUnlockError`) bila penerima belum memegang token lain di koleksi yang sama. Diduga hook
-  NEP-145 membebaskan storage entry approval ke **receiver**, padahal entry itu ditagih ke **owner**.
-  **Belum diperbaiki** — dicatat sebagai **TASK-036** (P0, wajib selesai sebelum M1 ditutup); jalur uang
-  NearSea (`list` → `buy` via NEP-199) tidak terkena, dan TC-006 memakai urutan `nft_revoke` →
-  `nft_transfer` sebagai jalan keluar sementara.
+- **Temuan F1 (TASK-006, 2026-10-08) — DIPERBAIKI ronde 29 (TASK-036)** — `nft_transfer` atas token
+  yang **masih di-approve** gagal `Storage accounting error: … cannot unlock more tokens than it has
+  deposited` (`ExcessiveUnlockError`) bila penerima belum memegang token lain di koleksi yang sama.
+  **Akar masalah sebenarnya**: approval NEP-178 tidak melakukan storage accounting (`all_hooks` = `()`),
+  jadi entry approval tidak pernah ditagihkan ke siapa pun; pencabutannya saat transfer terbaca hook
+  NEP-145 sebagai kredit lalu dicoba di-`unlock_storage` ke **receiver** — bukan "ditagih ke owner"
+  seperti dugaan awal. **Perbaikan**: `transfer_hook` kustom
+  (`RevokeApprovalsBeforeStorageAccounting`) mencabut approval **sebelum** snapshot storage accounting,
+  sehingga delta = 0. Regression test di dua level (3 unit + 1 sandbox); **TC-006 kembali memakai jalur
+  aslinya**. Jalur uang NearSea (`list` → `buy` via NEP-199) memang tidak pernah terkena.
 - **Koreksi spesifikasi `nft_revoke_token` (TASK-004, 2026-10-08)** — 5 dokumen menyebut `remove_sale`
   memanggil `nft_revoke_token` "sebagai approved account". **Method itu tidak ada di NEP-178**: standar
   hanya punya `nft_revoke`/`nft_revoke_all`, keduanya **owner-only** ("MUST panic if called by someone

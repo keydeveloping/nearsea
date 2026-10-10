@@ -110,7 +110,9 @@
   lokal Windows tidak berubah; CI membangun wasm + fixture sebelum test.
   **Temuan F1 (bug nyata, bukan test yang salah):** `nft_transfer` atas token yang **masih di-approve**
   gagal `ExcessiveUnlockError` (storage-accounting NEP-145 di kontrak koleksi) → dicatat sebagai
-  **TASK-036**; jalur uang NearSea (`list` → `buy`) tidak terkena. **Ronde 28: tiket 05/06/07/08
+  **TASK-036**; jalur uang NearSea (`list` → `buy`) tidak terkena. **Ronde 29: TASK-036 diperbaiki**
+  (hook `RevokeApprovalsBeforeStorageAccounting` mencabut approval sebelum snapshot storage accounting)
+  — regression test unit + sandbox, dan TC-006 kembali memakai jalur aslinya. **Ronde 28: tiket 05/06/07/08
   semuanya mendarat di `dev`** (PR #12/#13/#14); AC sandbox tiket 05/06 ditutup dengan bukti run CI di
   atas. Sisa slice M1: hanya jalur emas Playwright (tiket 10) yang menunggu deploy testnet.
 
