@@ -182,8 +182,10 @@ Kebijakan lengkap: [docs/development/versioning-and-release.md](./docs/developme
   NEP-145 sebagai kredit lalu dicoba di-`unlock_storage` ke **receiver** — bukan "ditagih ke owner"
   seperti dugaan awal. **Perbaikan**: `transfer_hook` kustom
   (`RevokeApprovalsBeforeStorageAccounting`) mencabut approval **sebelum** snapshot storage accounting,
-  sehingga delta = 0. Regression test di dua level (3 unit + 1 sandbox); **TC-006 kembali memakai jalur
-  aslinya**. Jalur uang NearSea (`list` → `buy` via NEP-199) memang tidak pernah terkena.
+  sehingga delta = 0. Regression test di dua level (**4 unit** + 1 sandbox); **TC-006 kembali memakai
+  jalur aslinya**. Jalur uang NearSea (`list` → `buy` via NEP-199) memang tidak pernah terkena —
+  terbukti test `nft_transfer_payout` lolos bahkan sebelum perbaikan. **Sisa gap**: `nft_approve` masih
+  tidak menagih storage entry approval (INV-020 untuk map approval belum ditegakkan) → **TASK-040**.
 - **Koreksi spesifikasi `nft_revoke_token` (TASK-004, 2026-10-08)** — 5 dokumen menyebut `remove_sale`
   memanggil `nft_revoke_token` "sebagai approved account". **Method itu tidak ada di NEP-178**: standar
   hanya punya `nft_revoke`/`nft_revoke_all`, keduanya **owner-only** ("MUST panic if called by someone

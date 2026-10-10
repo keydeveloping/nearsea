@@ -120,7 +120,9 @@
   `ExcessiveUnlockError`. **Perbaikan**: `transfer_hook` kustom
   (`RevokeApprovalsBeforeStorageAccounting`) mencabut approval **sebelum** hook NEP-145 mengambil
   snapshot `storage_usage`, sehingga delta yang dilihatnya nol. Regression test di dua level:
-  unit (3 test di `contract/src/lib.rs`) + sandbox (`task_036_*` di `market/tests/slice_sandbox.rs`).
+  **4 unit** di `contract/src/lib.rs` (2 gagal sebelum perbaikan) + 1 sandbox `task_036_*` di
+  `market/tests/slice_sandbox.rs`. **Yang TIDAK diklaim**: INV-020 untuk map approval sendiri masih
+  belum ditegakkan (`nft_approve` tidak menagih storage) — **TASK-040**, sebelum mainnet.
 
 ## Cara diverifikasi nanti (tooling DIPUTUSKAN — riset 2026-10-01)
 

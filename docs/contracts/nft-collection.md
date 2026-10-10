@@ -219,14 +219,24 @@ untuk penerima yang belum memegang token.
 
 Hook kustom mencabut approval **sebelum** hook NEP-145 mengambil snapshot `storage_usage`, jadi delta
 yang dilihatnya nol. Karena tidak ada pihak yang ditagih untuk entry itu, tidak ada yang perlu
-dikreditkan — akuntansi tetap konsisten (INV-019/INV-020 tidak berubah). Urutan dijamin karena
+dikreditkan — delta nol, jadi tidak ada kredit palsu. Urutan dijamin karena
 `transfer_hook` berjalan mendahului `all_hooks`; pencabutan bawaan di dalam `all_hooks` menjadi no-op.
+(INV-019/INV-020 untuk transfer tidak berubah; lihat catatan gap di akhir bagian ini.)
 
-Bukti: 3 regression test unit (`test_transfer_unapproved_token_to_fresh_receiver_succeeds`,
-`test_transfer_approved_token_to_registered_receiver_succeeds`,
-`test_transfer_approved_token_twice_between_registered_accounts`) + 1 test sandbox
-(`task_036_transfer_approved_token_to_fresh_receiver_succeeds`). Dua test pertama gagal sebelum
-perbaikan dengan pesan persis `cannot unlock more tokens than it has deposited`.
+Bukti: **4 regression test unit** — `test_transfer_unapproved_token_to_fresh_receiver_succeeds`
+(kontrol), `test_transfer_approved_token_to_registered_receiver_succeeds`,
+`test_transfer_payout_of_approved_token_to_fresh_receiver_succeeds`,
+`test_transfer_approved_token_then_second_transfer_succeeds` — + 1 test sandbox
+(`task_036_transfer_approved_token_to_fresh_receiver_succeeds`). Yang gagal sebelum perbaikan
+persis **dua**: kedua test yang memakai `nft_transfer` langsung, dengan pesan
+`cannot unlock more tokens than it has deposited`. Test kontrol dan test `nft_transfer_payout`
+(diinisiasi market dengan `approval_id`) **lolos** bahkan sebelum perbaikan — jadi yang rusak
+memang jalur `nft_transfer` langsung, bukan jalur uang NearSea (`list` → `buy`).
+
+**Gap yang sengaja tidak ditutup di sini:** `nft_approve` sendiri masih **tidak** menagih storage
+entry approval ke siapa pun (derive NEP-178 tidak melakukan storage accounting). Perbaikan ini
+menghapus gejalanya di jalur transfer, tapi INV-020 untuk map approval masih belum ditegakkan —
+dicatat sebagai **TASK-040** (P2, sebelum mainnet), bukan diperbaiki di sini (Surgical Changes).
 
 ---
 

@@ -70,6 +70,7 @@ Milestone: M0 | M1 | M2 | M3 | M4
 | TASK-037 | Tinjau `function-call-key-plugin` (dependency transitif `near-connect-hooks`): menyimpan private key function-call di `localStorage` | security | P0 | 007 | security/key-management.md + features/auth.md | todo | 1 | Keputusan tercatat: jalur dinonaktifkan permanen (tanpa `addFunctionCallKey`), atau dependency diganti, atau diterima + alasan tertulis. **Kode plugin terbukti ADA di bundle klien (ronde 26) — bukan alasan tree-shaking** | M1+ |
 | TASK-038 | Aktifkan lint yang tertunda setelah struktur `features/` ada: `import/order`, `no-restricted-imports` (larangan impor lintas-fitur), `react/jsx-no-useless-fragment` | frontend | P2 | 007 | development/code-standards.md §9 | done | 0.5 | Ketiga aturan aktif di `eslint.config.mjs` dan gate FE tetap hijau | M1+ |
 | TASK-039 | Advisory **RUSTSEC-2026-0285** (`rustls 0.23.43`, TLS 1.3 handshake) — perbaikan `>=0.23.45` bentrok dengan pin `aws-lc-rs =1.16.2` dari `near-crypto` | security/infra | P0 (blok PR #14) | 006 | development/ci-cd.md §3 | done | 1 | Keputusan tercatat: konflik bump dipecahkan (mis. bump `near-sdk`/`near-crypto`), ATAU advisory diterima + alasan tertulis di `audit.toml` (bukan di-ignore diam-diam) | M1 |
+| TASK-040 | **INV-020 untuk map approval belum ditegakkan**: `nft_approve` tidak menagih storage entry approval ke siapa pun (derive NEP-178 tanpa storage accounting) — temuan sampingan TASK-036 | contract | P2 (sebelum mainnet) | 002 | security/smart-contract-invariants.md INV-020 + contracts/nft-collection.md §4 | todo | 1 | `nft_approve` menagih storage entry approval ke approver/owner (atau keputusan "terima" tercatat + alasan); test menutup predikat INV-020 | M1+ |
 
 > **TASK-039 `done` (ronde 28):** advisory **RUSTSEC-2026-0285** (`rustls 0.23.43` — "TLS 1.3 handshake
 > messages incorrectly accepted across encryption level boundaries"; perbaikan `>=0.23.45`) terbit
@@ -103,7 +104,7 @@ Milestone: M0 | M1 | M2 | M3 | M4
 > **Perbaikan** (1 baris atribut + 1 hook kecil): `#[non_fungible_token(transfer_hook = "RevokeApprovalsBeforeStorageAccounting")]`
 > mencabut approval **sebelum** hook NEP-145 mengambil snapshot, sehingga delta = 0. Karena tidak ada
 > pihak yang ditagih untuk entry itu, tidak ada yang perlu dikreditkan — akuntansi tetap konsisten.
-> **Bukti**: 3 regression test unit (2 gagal sebelum perbaikan dengan pesan persis
+> **Bukti**: **4 regression test unit** (2 gagal sebelum perbaikan dengan pesan persis
 > `cannot unlock more tokens than it has deposited`, 1 kontrol lolos) + 1 test sandbox `task_036_*`
 > yang menutup AC "regression test sandbox". Suite lokal: 46 koleksi + 73 market hijau, `fmt`/`clippy
 > -D warnings` bersih, wasm ter-build. **TC-006 kini memakai jalur asli** (transfer tanpa `nft_revoke`
